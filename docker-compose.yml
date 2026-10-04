@@ -1,0 +1,14 @@
+# Para cualquier servidor con Docker (o Portainer → Stacks). En Umbrel usa la tienda comunitaria (ver INSTALAR-UMBREL.md).
+services:
+  movilcity:
+    image: ghcr.io/hackduck3/movilcity-ventas:latest
+    restart: unless-stopped
+    ports:
+      - "4747:3000"
+    environment:
+      TZ: Europe/Madrid
+    volumes:
+      - movilcity-data:/data
+
+volumes:
+  movilcity-data:

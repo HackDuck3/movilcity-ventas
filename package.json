@@ -1,0 +1,13 @@
+{
+  "name": "movilcity-ventas",
+  "version": "1.1.0",
+  "description": "Control de ventas, gastos y facturas para tienda de móviles. Sin dependencias: solo Node.js >= 22.13",
+  "main": "server.js",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "demo": "node --disable-warning=ExperimentalWarning scripts/demo-data.js && DATA_DIR=./data-demo PORT=3001 node --disable-warning=ExperimentalWarning server.js"
+  },
+  "license": "UNLICENSED"
+}

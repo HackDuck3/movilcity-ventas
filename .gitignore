@@ -1,0 +1,18 @@
+# datos reales de la tienda: NUNCA se suben a GitHub
+/data/
+/data-demo/
+node_modules/
+*.db
+*.db-wal
+*.db-shm
+
+# información personal / de la empresa: tampoco se sube
+.env
+.env.*
+*.local.json
+/files/
+/backups/
+*.pdf
+*.xlsx
+*.csv
+.DS_Store

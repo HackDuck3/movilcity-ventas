@@ -1,0 +1,11 @@
+data
+data-demo
+node_modules
+.git
+.github
+atik-movilcity
+assets
+*.md
+install.sh
+docker-compose.yml
+umbrel-app-store.yml

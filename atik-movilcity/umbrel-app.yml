@@ -1,0 +1,37 @@
+manifestVersion: 1
+id: atik-movilcity
+storage:
+  dataRoot: data
+category: finance
+name: Movil City Ventas
+version: "1.1.0"
+tagline: Caja, tickets, facturas y archivos de la tienda
+icon: https://raw.githubusercontent.com/HackDuck3/movilcity-ventas/main/assets/icon.svg
+description: >-
+  Control de ventas y gastos para la tienda, con roles de trabajador y administrador.
+
+
+  La app tiene su propio inicio de sesión: la primera vez que la abras crearás la cuenta del administrador (dueño).
+  Los trabajadores entran con su propio usuario en http://umbrel.local:4747 sin necesitar la contraseña de Umbrel.
+
+
+  - Caja del día con ventas y gastos
+
+  - Panel del dueño con beneficio diario, mensual y anual
+
+  - Tickets (facturas simplificadas) y facturas en PDF
+
+  - Archivos de la tienda solo para el administrador
+releaseNotes: ""
+developer: Atik
+website: https://github.com/HackDuck3/movilcity-ventas
+dependencies: []
+repo: https://github.com/HackDuck3/movilcity-ventas
+support: https://github.com/HackDuck3/movilcity-ventas/issues
+port: 4747
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: Atik
+submission: https://github.com/HackDuck3/movilcity-ventas

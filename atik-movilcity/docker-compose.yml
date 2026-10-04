@@ -1,0 +1,23 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      # formato: <id-de-la-app>_<servicio>_1
+      APP_HOST: atik-movilcity_web_1
+      APP_PORT: 3000
+      # La app tiene su propio login con roles. Sin esto, cada trabajador necesitaría
+      # la contraseña de Umbrel (que da acceso a TODO el servidor).
+      PROXY_AUTH_ADD: "false"
+
+  web:
+    image: ghcr.io/hackduck3/movilcity-ventas:1.1.0
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    stop_grace_period: 20s
+    environment:
+      TZ: Europe/Madrid
+      DATA_DIR: /data
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
