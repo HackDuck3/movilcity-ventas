@@ -1,116 +1,173 @@
-// Plantillas de factura (A4) y ticket (80 mm) + impresión / guardar como PDF.
+// Printable documents: A4 invoice and 80 mm thermal ticket.
 import { esc, money, fmtDate, fmtTime } from './core.js';
 
-function shopLines(shop) {
-  return [shop.legal_name, shop.nif ? `NIF: ${shop.nif}` : '', shop.address1, shop.address2, shop.phone, shop.email]
-    .filter(Boolean).map(esc).join('<br>');
-}
-const replacesText = (inv) => inv.replaces_number
-  ? `Esta factura sustituye a la factura simplificada nº ${inv.replaces_number}${inv.replaces_date ? ' de ' + fmtDate(inv.replaces_date) : ''}.` : '';
+const lines = (parts) => parts.filter(Boolean).map(esc).join('<br>');
 
-function vatBreakdown(total, cfg) {
-  if (!cfg.show_vat) return null;
+const shopLines = (shop) =>
+  lines([shop.legal_name, shop.nif && `NIF: ${shop.nif}`, shop.address1, shop.address2, shop.phone, shop.email]);
+
+const customerLines = (inv) =>
+  lines([inv.customer_name, inv.customer_nif && `NIF: ${inv.customer_nif}`, inv.customer_address, inv.customer_phone]);
+
+const documentTitle = (inv, cfg) =>
+  (inv.kind === 'ticket' ? cfg.ticket_title || 'Ticket' : cfg.title || 'Factura');
+
+function replacesText(inv) {
+  if (!inv.replaces_number) return '';
+  const date = inv.replaces_date ? ` de ${fmtDate(inv.replaces_date)}` : '';
+  return `Esta factura sustituye a la factura simplificada nº ${inv.replaces_number}${date}.`;
+}
+
+// Prices always include VAT; this only splits the total into base + VAT.
+function vatBreakdown(inv, cfg) {
+  if (!inv.show_vat) return null;
   const rate = Number(cfg.vat_rate) || 0;
-  const base = Math.round((total / (1 + rate / 100)) * 100) / 100;
-  return { rate, base, vat: Math.round((total - base) * 100) / 100 };
+  const base = Math.round((inv.total / (1 + rate / 100)) * 100) / 100;
+  return { rate, base, vat: Math.round((inv.total - base) * 100) / 100 };
+}
+
+// Saved invoices carry their own warranty_text; drafts look it up in settings.
+export function warrantyGroups(inv, cfg) {
+  const groups = new Map();
+  for (const item of inv.items) {
+    if (!item.warranty) continue;
+    const text = item.warranty_text ?? cfg.warranties.find(w => w.name === item.warranty)?.text ?? '';
+    if (!groups.has(item.warranty)) groups.set(item.warranty, { name: item.warranty, text, items: [] });
+    groups.get(item.warranty).items.push(item.description);
+  }
+  const list = [...groups.values()];
+  const coversEveryItem = list.length === 1 && list[0].items.length === inv.items.length;
+  return list.map(g => ({ ...g, items: coversEveryItem ? [] : g.items.filter(Boolean) }));
+}
+
+function itemRows(inv) {
+  return inv.items.map(item => {
+    const qty = Number(item.qty) || 1;
+    const price = Number(item.price) || 0;
+    return `<tr>
+      <td>
+        <div class="item-name">${esc(item.description)}</div>
+        ${item.detail ? `<div class="item-detail">${esc(item.detail)}</div>` : ''}
+      </td>
+      <td class="r">${qty}</td>
+      <td class="r">${money(price)}</td>
+      <td class="r item-total">${money(qty * price)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function totalsBlock(inv, cfg) {
+  const vat = vatBreakdown(inv, cfg);
+  const row = (label, value) => `<div class="sum-row"><span>${label}</span><span>${value}</span></div>`;
+  return `<div class="doc-totals">
+    ${inv.discount ? row('Subtotal', money(inv.subtotal)) + row('Descuento', `−${money(inv.discount)}`) : ''}
+    ${vat ? row('Base imponible', money(vat.base)) + row(`IVA (${vat.rate}%)`, money(vat.vat)) : ''}
+    <div class="sum-total"><span>Total</span><span>${money(inv.total)}</span></div>
+    ${vat ? '' : '<div class="sum-note">IVA incluido</div>'}
+  </div>`;
+}
+
+function conditionsBlock(inv, cfg) {
+  const warranties = warrantyGroups(inv, cfg).map(g => `
+    <div class="warranty">
+      <b>${esc(g.name)}</b>${g.items.length ? ` <span class="warranty-items">(${esc(g.items.join(', '))})</span>` : ''}
+      <div>${esc(g.text)}</div>
+    </div>`).join('');
+  const notes = [replacesText(inv), inv.notes].filter(Boolean).map(esc).join('\n');
+  return `<div class="doc-conditions">
+    ${warranties ? `<h4>Garantía</h4>${warranties}` : ''}
+    ${notes ? `<h4>Notas</h4><div class="doc-notes">${notes}</div>` : ''}
+  </div>`;
 }
 
 export function invoiceA4(inv, settings) {
   const { shop, invoice: cfg } = settings;
-  const title = inv.kind === 'ticket' ? (cfg.ticket_title || 'Ticket') : (cfg.title || 'Factura');
-  const rows = [];
-  for (const it of inv.items) {
-    const qty = Number(it.qty) || 1, price = Number(it.price) || 0;
-    rows.push(`<tr><td>${esc(it.description)}</td><td class="r">${qty}</td><td class="r unit">${money(price)}</td><td class="r tot">${money(qty * price)}</td></tr>`);
-    if (it.detail) rows.push(`<tr><td class="detail" colspan="4">${esc(it.detail)}</td></tr>`);
-  }
-  const minRows = Math.max(Number(cfg.min_rows) || 0, 0) + 2;
-  while (rows.length < minRows) rows.push('<tr><td colspan="4">&nbsp;</td></tr>');
-  const vat = vatBreakdown(inv.total, cfg);
-  const customer = [inv.customer_name, inv.customer_nif ? `NIF: ${inv.customer_nif}` : '', inv.customer_address, inv.customer_phone]
-    .filter(Boolean).map(esc).join('<br>');
-  const warranty = [replacesText(inv), inv.notes].filter(Boolean).map(esc).join('\n');
+  const customer = customerLines(inv);
+  const colors = `--doc-shop:${esc(cfg.color_shop)};--doc-title:${esc(cfg.color_title)};--doc-accent:${esc(cfg.color_accent)}`;
 
-  return `<div class="invoice-doc">
+  return `<div class="invoice-doc" style="${colors}">
     ${inv.voided ? '<div class="void-stamp">ANULADA</div>' : ''}
-    ${shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : ''}
-    <h2 class="shop-name" style="color:${esc(cfg.color_shop)}">${esc(shop.name)}</h2>
-    <div class="shop-lines">${shopLines(shop)}</div>
-    <div class="doc-title" style="color:${esc(cfg.color_title)}">${esc(title)}</div>
-    <div class="doc-date" style="color:${esc(cfg.color_accent)}">${fmtDate(inv.date)}</div>
-    <div class="meta">
-      <div>${customer ? `<h4>Cliente</h4>${customer}` : ''}</div>
-      <div><h4>N.º de ${inv.kind === 'ticket' ? 'ticket' : 'factura'}</h4>${esc(inv.number || '—')}</div>
-    </div>
-    <table class="lines">
-      <thead style="color:${esc(cfg.color_title)}"><tr>
-        <th>Descripción</th><th class="r" style="width:90px">Cantidad</th><th class="r" style="width:130px">Precio unitario</th><th class="r" style="width:110px">Precio total</th>
-      </tr></thead>
-      <tbody>${rows.join('')}</tbody>
-    </table>
-    <div class="bottom">
-      <div class="warranty">${warranty}</div>
-      <div class="sums">
-        <div class="tr"><span>Subtotal</span><b class="num">${money(inv.subtotal)}</b></div>
-        <div class="tr"><span style="color:${esc(cfg.color_title)}">Descuento</span><b class="num">${money(inv.discount)}</b></div>
-        ${vat ? `<div class="tr"><span>Base imponible</span><b class="num">${money(vat.base)}</b></div>
-                 <div class="tr"><span>IVA (${vat.rate}%) incluido</span><b class="num">${money(vat.vat)}</b></div>` : ''}
-        <div class="total num" style="color:${esc(cfg.color_accent)}">${money(inv.total)}</div>
+    <header class="doc-head">
+      <div class="doc-brand">
+        ${shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : ''}
+        <h2 class="shop-name">${esc(shop.name)}</h2>
+        <div class="shop-lines">${shopLines(shop)}</div>
       </div>
+      <div class="doc-id">
+        <div class="doc-title">${esc(documentTitle(inv, cfg))}</div>
+        <div class="doc-number">N.º ${esc(inv.number || '—')}</div>
+        <div class="doc-date">${fmtDate(inv.date)}</div>
+      </div>
+    </header>
+    ${customer ? `<section class="doc-customer"><h4>Cliente</h4>${customer}</section>` : ''}
+    <table class="doc-items">
+      <thead><tr><th>Descripción</th><th class="r">Cant.</th><th class="r">Precio</th><th class="r">Importe</th></tr></thead>
+      <tbody>${itemRows(inv)}</tbody>
+    </table>
+    <div class="doc-bottom">
+      ${conditionsBlock(inv, cfg)}
+      ${totalsBlock(inv, cfg)}
     </div>
-    ${cfg.footer ? `<div class="footer-text">${esc(cfg.footer)}</div>` : ''}
+    ${cfg.footer ? `<footer class="doc-footer">${esc(cfg.footer)}</footer>` : ''}
   </div>`;
 }
 
 export function ticket80(inv, settings) {
   const { shop, invoice: cfg } = settings;
-  const vat = vatBreakdown(inv.total, cfg);
-  const items = inv.items.map(it => {
-    const qty = Number(it.qty) || 1, price = Number(it.price) || 0;
-    return `<div>${esc(it.description)}</div>
-      ${it.detail ? `<div style="font-size:11px">${esc(it.detail)}</div>` : ''}
+  const vat = vatBreakdown(inv, cfg);
+  const items = inv.items.map(item => {
+    const qty = Number(item.qty) || 1;
+    const price = Number(item.price) || 0;
+    return `<div>${esc(item.description)}</div>
+      ${item.detail ? `<div class="small">${esc(item.detail)}</div>` : ''}
       <div class="tl"><span>${qty} x ${money(price)}</span><span>${money(qty * price)}</span></div>`;
   }).join('');
+  const warranties = warrantyGroups(inv, cfg).map(g =>
+    `<div class="small">${g.items.length ? `<b>${esc(g.items.join(', '))}:</b> ` : ''}${esc(g.text)}</div>`).join('');
+
   return `<div class="ticket-doc">
     ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
     <div class="c"><h2>${esc(shop.name)}</h2>${shopLines(shop)}</div>
     <hr>
-    <div class="tl"><b>${esc(inv.kind === 'ticket' ? (cfg.ticket_title || 'Ticket') : (cfg.title || 'Factura'))} ${esc(inv.number || '')}</b><span>${fmtDate(inv.date)} ${fmtTime(inv.created_at)}</span></div>
+    <div class="tl"><b>${esc(documentTitle(inv, cfg))} ${esc(inv.number || '')}</b><span>${fmtDate(inv.date)} ${fmtTime(inv.created_at)}</span></div>
     ${inv.customer_name ? `<div>Cliente: ${esc(inv.customer_name)}${inv.customer_nif ? ' · ' + esc(inv.customer_nif) : ''}</div>` : ''}
     <hr>${items}<hr>
-    <div class="tl"><span>Subtotal</span><span>${money(inv.subtotal)}</span></div>
-    ${inv.discount ? `<div class="tl"><span>Descuento</span><span>-${money(inv.discount)}</span></div>` : ''}
+    ${inv.discount ? `<div class="tl"><span>Subtotal</span><span>${money(inv.subtotal)}</span></div>
+                      <div class="tl"><span>Descuento</span><span>-${money(inv.discount)}</span></div>` : ''}
     <div class="tl big"><span>TOTAL</span><span>${money(inv.total)}</span></div>
-    ${vat ? `<div class="tl"><span>Base ${money(vat.base)}</span><span>IVA ${vat.rate}% ${money(vat.vat)}</span></div>` : ''}
+    ${vat ? `<div class="tl"><span>Base ${money(vat.base)}</span><span>IVA ${vat.rate}% ${money(vat.vat)}</span></div>`
+          : '<div class="c">IVA incluido</div>'}
     <hr>
-    ${vat ? '' : '<div class="c">IVA incluido</div>'}
+    ${warranties}
     ${inv.notes ? `<div class="c">${esc(inv.notes)}</div>` : ''}
-    ${cfg.footer ? `<div class="c" style="margin-top:4px">${esc(cfg.footer)}</div>` : ''}
-    <div class="c" style="margin-top:6px">¡Gracias por su compra!</div>
+    ${cfg.footer ? `<div class="c">${esc(cfg.footer)}</div>` : ''}
+    <div class="c thanks">¡Gracias por su compra!</div>
     ${inv.voided ? '<div class="c big">*** ANULADO ***</div>' : ''}
   </div>`;
 }
 
-/** Imprime o guarda en PDF (en el diálogo de impresión elige "Guardar como PDF"). */
+// The browser print dialog doubles as "Save as PDF".
 export function printDocument(html, { format = 'a4', filename = 'documento' } = {}) {
   const root = document.getElementById('print-root');
   root.innerHTML = html;
   let pageCss = '@page { size: A4; margin: 0; }';
   if (format === 'ticket') {
-    root.style.display = 'block'; // medir el alto real del ticket
-    const hmm = Math.ceil(root.firstElementChild.getBoundingClientRect().height * 25.4 / 96) + 6;
+    root.style.display = 'block';
+    const heightMm = Math.ceil(root.firstElementChild.getBoundingClientRect().height * 25.4 / 96) + 6;
     root.style.display = '';
-    pageCss = `@page { size: 80mm ${hmm}mm; margin: 0; }`;
+    pageCss = `@page { size: 80mm ${heightMm}mm; margin: 0; }`;
   }
   const style = document.createElement('style');
-  style.id = 'print-page-style'; style.textContent = pageCss;
+  style.textContent = pageCss;
   document.head.appendChild(style);
-  const oldTitle = document.title;
-  document.title = filename; // nombre por defecto del PDF
+  const previousTitle = document.title;
+  document.title = filename;
   document.body.classList.add('printing');
   const cleanup = () => {
     document.body.classList.remove('printing');
-    style.remove(); root.innerHTML = ''; document.title = oldTitle;
+    style.remove();
+    root.innerHTML = '';
+    document.title = previousTitle;
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);

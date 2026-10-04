@@ -307,37 +307,50 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 @media (max-width: 1200px) { .inv-layout { grid-template-columns: 1fr; } }
 .inv-lines .line { display: grid; grid-template-columns: 1fr 64px 100px 34px; gap: 8px; margin-bottom: 8px; align-items: start; }
 .inv-lines .line .stack { display: flex; flex-direction: column; gap: 4px; }
+.inv-lines .line .stack select, .inv-lines .line .stack input[data-k=detail] { font-size: 13px; }
+.pairs-edit .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) 34px; gap: 8px; margin-bottom: 8px; }
+@media (max-width: 700px) { .pairs-edit .pair { grid-template-columns: 1fr 34px; } .pairs-edit .pair input:first-child { grid-column: 1 / -1; } }
 .inv-preview-wrap { background: #e9eaee; border-radius: var(--radius); padding: 18px; overflow: auto; position: sticky; top: 16px; }
 :root[data-theme="dark"] .inv-preview-wrap { background: #0c0d0f; }
 .inv-preview-scale { transform-origin: top left; }
 
-/* El documento de factura usa sus propios colores (no depende del tema claro/oscuro) */
+/* Invoice document: fixed colours, independent of the light/dark theme */
 .invoice-doc {
-  width: 210mm; min-height: 297mm; background: #fff; color: #333; padding: 16mm 15mm 14mm; margin: 0 auto;
-  font-family: Roboto, "Helvetica Neue", Arial, sans-serif; position: relative; box-shadow: 0 2px 12px rgba(0,0,0,.12);
-  display: flex; flex-direction: column;
+  --doc-shop: #6c63e6; --doc-title: #283593; --doc-accent: #e91e63; --doc-ink: #1f2430; --doc-muted: #6b7280; --doc-line: #e3e6ec;
+  width: 210mm; min-height: 297mm; background: #fff; color: var(--doc-ink); padding: 16mm 16mm 12mm; margin: 0 auto;
+  font-family: Inter, Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 12.5px; line-height: 1.5;
+  position: relative; box-shadow: 0 2px 12px rgba(0,0,0,.12); display: flex; flex-direction: column;
+  border-top: 6px solid var(--doc-title);
 }
-.invoice-doc .shop-name { font-size: 26px; font-weight: 700; margin: 0 0 18px; }
-.invoice-doc .shop-logo { max-height: 60px; max-width: 200px; margin-bottom: 12px; display: block; }
-.invoice-doc .shop-lines { font-size: 12.5px; color: #666; line-height: 1.6; }
-.invoice-doc .doc-title { font-size: 40px; font-weight: 700; margin: 34px 0 4px; letter-spacing: -.01em; }
-.invoice-doc .doc-date { font-size: 14px; font-weight: 700; }
-.invoice-doc .meta { display: grid; grid-template-columns: 1fr 1fr; margin: 26px 0 54px; font-size: 13px; }
-.invoice-doc .meta h4 { margin: 0 0 6px; font-size: 14px; color: #333; }
-.invoice-doc .meta div { color: #555; line-height: 1.55; }
-.invoice-doc table.lines { width: 100%; border-collapse: collapse; border-top: 1px solid #bbb; font-size: 13px; }
-.invoice-doc table.lines th { text-align: left; font-size: 14px; padding: 22px 4px 10px; }
-.invoice-doc table.lines th.r, .invoice-doc table.lines td.r { text-align: right; }
-.invoice-doc table.lines td { padding: 4px 4px; height: 20px; color: #222; }
-.invoice-doc table.lines td.unit, .invoice-doc table.lines td.tot { color: #666; }
-.invoice-doc table.lines tr:nth-child(even) td { background: #f3f3f3; }
-.invoice-doc table.lines td.detail { color: #222; }
-.invoice-doc .bottom { display: grid; grid-template-columns: 1fr 230px; border-top: 1px solid #bbb; margin-top: 0; padding-top: 18px; font-size: 13px; }
-.invoice-doc .warranty { color: #444; font-size: 13px; padding-top: 14px; white-space: pre-line; }
-.invoice-doc .sums .tr { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11.5px; }
-.invoice-doc .sums .tr b { color: #111; }
-.invoice-doc .sums .total { font-size: 25px; font-weight: 700; text-align: right; margin-top: 4px; }
-.invoice-doc .footer-text { margin-top: auto; padding-top: 24px; font-size: 11px; color: #888; text-align: center; white-space: pre-line; }
+.invoice-doc h4 { margin: 0 0 5px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--doc-muted); }
+.invoice-doc .doc-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+.invoice-doc .shop-logo { max-height: 56px; max-width: 190px; margin-bottom: 10px; display: block; }
+.invoice-doc .shop-name { font-size: 24px; font-weight: 750; margin: 0 0 6px; color: var(--doc-shop); letter-spacing: -.01em; }
+.invoice-doc .shop-lines { color: var(--doc-muted); font-size: 12px; }
+.invoice-doc .doc-id { text-align: right; flex: none; }
+.invoice-doc .doc-title { font-size: 26px; font-weight: 750; color: var(--doc-title); text-transform: uppercase; letter-spacing: .02em; line-height: 1.15; max-width: 90mm; }
+.invoice-doc .doc-number { font-size: 15px; font-weight: 650; margin-top: 8px; }
+.invoice-doc .doc-date { color: var(--doc-muted); }
+.invoice-doc .doc-customer { margin-top: 26px; padding: 12px 14px; background: #f6f7f9; border-radius: 8px; border-left: 3px solid var(--doc-title); max-width: 100mm; }
+.invoice-doc .doc-items { width: 100%; border-collapse: collapse; margin-top: 28px; }
+.invoice-doc .doc-items th { text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #fff; background: var(--doc-title); padding: 8px 10px; }
+.invoice-doc .doc-items th:first-child { border-radius: 6px 0 0 6px; }
+.invoice-doc .doc-items th:last-child { border-radius: 0 6px 6px 0; }
+.invoice-doc .doc-items th.r, .invoice-doc .doc-items td.r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.invoice-doc .doc-items td { padding: 10px; border-bottom: 1px solid var(--doc-line); vertical-align: top; }
+.invoice-doc .item-name { font-weight: 600; }
+.invoice-doc .item-detail { color: var(--doc-muted); font-size: 11.5px; }
+.invoice-doc .item-total { font-weight: 600; }
+.invoice-doc .doc-bottom { display: grid; grid-template-columns: 1fr 72mm; gap: 28px; margin-top: 22px; align-items: start; }
+.invoice-doc .doc-conditions h4:not(:first-child) { margin-top: 14px; }
+.invoice-doc .warranty { margin-bottom: 8px; font-size: 12px; color: #374151; }
+.invoice-doc .warranty-items { color: var(--doc-muted); }
+.invoice-doc .doc-notes { font-size: 12px; color: #374151; white-space: pre-line; }
+.invoice-doc .sum-row { display: flex; justify-content: space-between; padding: 4px 10px; color: #374151; font-variant-numeric: tabular-nums; }
+.invoice-doc .sum-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; padding: 10px; border-radius: 8px; background: var(--doc-accent); color: #fff; font-size: 20px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.invoice-doc .sum-total span:first-child { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.invoice-doc .sum-note { text-align: right; color: var(--doc-muted); font-size: 11px; margin-top: 4px; padding-right: 10px; }
+.invoice-doc .doc-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--doc-line); font-size: 10.5px; color: var(--doc-muted); text-align: center; white-space: pre-line; }
 .invoice-doc .void-stamp { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 90px; font-weight: 800; color: rgba(220, 38, 38, .22); border: 8px solid rgba(220, 38, 38, .22); padding: 0 30px; border-radius: 16px; }
 
 /* Ticket térmico 80 mm */
@@ -350,6 +363,8 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .ticket-doc hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
 .ticket-doc .tl { display: flex; justify-content: space-between; gap: 6px; }
 .ticket-doc .big { font-size: 16px; font-weight: 700; }
+.ticket-doc .small { font-size: 11px; }
+.ticket-doc .thanks { margin-top: 6px; }
 .ticket-doc .logo { max-width: 40mm; max-height: 18mm; display: block; margin: 0 auto 4px; filter: grayscale(1); }
 
 /* ------------------------------------------------------------------ impresión */
@@ -389,3 +404,4 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .sheet-card a svg { width: 20px; height: 20px; color: var(--text-2); }
 .sheet-card a.active { color: var(--primary); }
 @media (min-width: 821px) { .mobile-sheet { display: none !important; } }
+.notice svg { width: 16px; height: 16px; vertical-align: -3px; }

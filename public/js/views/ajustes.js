@@ -43,10 +43,9 @@ const SCHEMAS = {
     ['prefix', 'text', 'Serie de facturas (prefijo)', 'Ej.: "F-" o "2026-"'], ['next_number', 'number', 'Próximo número de factura'],
     ['ticket_title', 'text', 'Título en tickets', 'Nombre legal: "Factura simplificada"'], ['title', 'text', 'Título en facturas'],
     ['ticket_format', 'select', 'Formato de impresión de los tickets', '', false, [['ticket', 'Ticket térmico 80 mm'], ['a4', 'Folio A4 (mismo diseño que la factura)']]],
-    ['min_rows', 'number', 'Filas vacías mínimas en la tabla', 'Para que la factura tenga el aspecto de tu plantilla'],
-    ['warranty', 'textarea', 'Texto de garantía por defecto', '', true],
+    ['warranties', 'pairs', 'Tipos de garantía', 'Nombre y texto que se imprime. Asigna uno a cada producto en Ajustes → Productos; se puede cambiar en cada línea del ticket o factura.', true],
     ['footer', 'textarea', 'Pie de página', 'Ej.: datos registrales, política de devoluciones…', true],
-    ['show_vat', 'bool', 'Mostrar desglose de IVA (precios con IVA incluido)', 'Recomendado si emites facturas completas'],
+    ['show_vat', 'bool', 'Desglosar IVA por defecto', 'Valor inicial del interruptor "Desglosar IVA" al hacer un ticket o factura'],
     ['vat_rate', 'number', 'Tipo de IVA (%)'],
     ['color_shop', 'color', 'Color del nombre de la tienda'], ['color_title', 'color', 'Color del título y cabeceras'], ['color_accent', 'color', 'Color de fecha y total'],
   ] },
@@ -74,6 +73,11 @@ export async function ajustesView(root, params) {
 }
 
 // ------------------------------------------------------------------ formulario genérico
+const pairRow = (pair = { name: '', text: '' }) => `<div class="pair">
+  <input type="text" data-pair-name placeholder="Nombre" value="${esc(pair.name)}">
+  <input type="text" data-pair-text placeholder="Texto que se imprime" value="${esc(pair.text)}">
+  <button type="button" class="btn btn-ghost btn-icon" data-pair-remove title="Quitar">${icon('trash')}</button></div>`;
+
 async function schemaForm(body, schema) {
   const values = (await api('/admin/settings'))[schema.key];
   const field = ([name, type, label, hint = '', wide = false, options = []]) => {
@@ -86,6 +90,8 @@ async function schemaForm(body, schema) {
       case 'textarea': return `<label class="${cls}">${esc(label)} ${h}<textarea name="${name}" rows="2">${esc(v)}</textarea></label>`;
       case 'color': return `<label class="${cls}">${esc(label)} ${h}<span class="color-input"><input type="color" name="${name}" value="${esc(v)}"><code>${esc(v)}</code></span></label>`;
       case 'select': return `<label class="${cls}">${esc(label)} ${h}<select name="${name}">${options.map(([ov, ol]) => `<option value="${ov}" ${ov === v ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select></label>`;
+      case 'pairs': return `<div class="${cls}">${esc(label)} ${h}<div class="pairs-edit" data-pairs="${name}">${(v || []).map(pairRow).join('')}</div>
+          <div><button type="button" class="btn btn-sm" data-pair-add="${name}">${icon('plus')} Añadir</button></div></div>`;
       case 'list': return `<label class="${cls}">${esc(label)} ${h}<textarea name="${name}" data-list rows="4">${esc((v || []).join('\n'))}</textarea></label>`;
       case 'image': return `<div class="${cls}">${esc(label)} ${h}<div class="row">
           <img data-img-preview src="${esc(v || '')}" style="max-height:56px;max-width:180px;border:1px solid var(--border);border-radius:8px;padding:4px;${v ? '' : 'display:none'}">
@@ -109,6 +115,12 @@ async function schemaForm(body, schema) {
       const p = form.querySelector('[data-img-preview]'); p.src = url; p.style.display = '';
     });
   }));
+  form.addEventListener('click', (e) => {
+    const add = e.target.closest('[data-pair-add]');
+    if (add) form.querySelector(`[data-pairs="${add.dataset.pairAdd}"]`).insertAdjacentHTML('beforeend', pairRow());
+    const remove = e.target.closest('[data-pair-remove]');
+    if (remove) remove.closest('.pair').remove();
+  });
   const clr = form.querySelector('[data-img-clear]');
   if (clr) clr.addEventListener('click', () => { form.querySelector('input[type=hidden]').value = ''; form.querySelector('[data-img-preview]').style.display = 'none'; });
 
@@ -116,6 +128,12 @@ async function schemaForm(body, schema) {
     e.preventDefault();
     const out = {};
     for (const [name, type] of schema.fields) {
+      if (type === 'pairs') {
+        out[name] = [...form.querySelectorAll(`[data-pairs="${name}"] .pair`)].map(row => ({
+          name: row.querySelector('[data-pair-name]').value.trim(), text: row.querySelector('[data-pair-text]').value.trim(),
+        })).filter(pair => pair.name);
+        continue;
+      }
       const el = form.elements[name]; if (!el) continue;
       if (type === 'bool') out[name] = el.checked;
       else if (type === 'number') out[name] = Number(el.value);
@@ -151,6 +169,7 @@ async function categoriesTab(body, kind) {
   const isSale = kind === 'sale';
   let cats = (await api('/categories?all=1')).filter(c => c.kind === kind);
   cats.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
+  const warranties = state.settings.invoice.warranties.map(w => w.name);
 
   body.innerHTML = `
     <div class="notice" style="margin-bottom:14px">${isSale
@@ -169,13 +188,14 @@ async function categoriesTab(body, kind) {
   const list = body.querySelector('[data-list]');
   function draw() {
     list.innerHTML = `<table class="t"><thead><tr><th style="width:70px">Orden</th><th>Color</th><th>Nombre</th>
-      ${isSale ? '<th>Precio sugerido</th><th>Beneficio sugerido</th><th>Favorito</th>' : '<th>Tipo</th>'}<th>Activo</th></tr></thead>
+      ${isSale ? '<th>Precio sugerido</th><th>Beneficio sugerido</th><th>Garantía</th><th>Favorito</th>' : '<th>Tipo</th>'}<th>Activo</th></tr></thead>
       <tbody>${cats.map((c, i) => `<tr data-id="${c.id}" style="${c.active ? '' : 'opacity:.5'}">
         <td><div class="row" style="gap:0"><button class="btn btn-ghost btn-icon" data-up ${i === 0 ? 'disabled' : ''}>${icon('up')}</button><button class="btn btn-ghost btn-icon" data-down ${i === cats.length - 1 ? 'disabled' : ''}>${icon('down')}</button></div></td>
         <td><input type="color" class="swatch" data-f="color" value="${esc(c.color)}"></td>
         <td><input type="text" data-f="name" value="${esc(c.name)}" style="min-width:160px"></td>
         ${isSale ? `<td><input type="text" data-f="default_price" inputmode="decimal" placeholder="—" value="${c.default_price == null ? '' : moneyInput(c.default_price)}" style="width:100px"></td>
           <td><input type="text" data-f="default_profit" inputmode="decimal" placeholder="—" value="${c.default_profit == null ? '' : moneyInput(c.default_profit)}" style="width:100px"></td>
+          <td><select data-f="warranty" style="width:auto">${['', ...warranties].map(w => `<option value="${esc(w)}" ${w === (c.warranty || '') ? 'selected' : ''}>${w ? esc(w) : 'Sin garantía'}</option>`).join('')}</select></td>
           <td><button class="btn btn-ghost btn-icon" data-fav title="Favorito" style="color:${c.favorite ? '#eab308' : 'var(--text-3)'}">${icon('star')}</button></td>`
         : `<td><select data-f="expense_type" style="width:auto"><option value="stock" ${c.expense_type === 'stock' ? 'selected' : ''}>Mercancía</option><option value="operating" ${c.expense_type !== 'stock' ? 'selected' : ''}>Operativo</option></select></td>`}
         <td><input type="checkbox" data-f="active" ${c.active ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--primary)"></td>

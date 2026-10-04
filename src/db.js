@@ -141,6 +141,13 @@ const EXPENSE_CATEGORIES = [
   ['Otros gastos', 'operating'],
 ];
 
+const DEFAULT_WARRANTY = 'Producto nuevo';
+const WARRANTY_BY_CATEGORY = {
+  'Reparacion': 'Reparación', 'Solucion Tecnica': 'Software',
+  'Tarjeta SIM': '', 'Duplicado': '', 'Copias': '', 'Impresion': '', 'Escaneo': '',
+};
+const defaultWarrantyFor = (categoryName) => WARRANTY_BY_CATEGORY[categoryName] ?? DEFAULT_WARRANTY;
+
 const PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948',
   '#0891b2', '#7c3aed', '#be123c', '#4d7c0f', '#b45309', '#475569'];
 
@@ -185,14 +192,18 @@ const DEFAULT_SETTINGS = {
     ticket_prefix: 'T-',
     title: 'Factura',
     ticket_title: 'Factura simplificada',
-    warranty: 'Garantía 15 dias de software',
+    warranties: [
+      { name: 'Producto nuevo', text: 'Garantía legal de 3 años desde la entrega.' },
+      { name: 'Segunda mano / reacondicionado', text: 'Garantía de 2 años desde la entrega.' },
+      { name: 'Reparación', text: 'Garantía de 3 meses desde la entrega. Cubre la reparación realizada y las piezas sustituidas.' },
+      { name: 'Software', text: 'Garantía de 15 días de software.' },
+    ],
     footer: '',
     show_vat: true,
     vat_rate: 21,
     color_shop: '#6c63e6',
     color_title: '#283593',
     color_accent: '#e91e63',
-    min_rows: 6,
     ticket_format: 'ticket',      // formato de impresión de los tickets: 'ticket' (80 mm) o 'a4'
   },
   modules: {
@@ -239,12 +250,26 @@ function allSettings() {
   return out;
 }
 
-// Semilla inicial de categorías
+function hasColumn(table, column) {
+  return all(`PRAGMA table_info(${table})`).some(c => c.name === column);
+}
+
+function migrate() {
+  if (!hasColumn('invoices', 'replaces_id')) db.exec('ALTER TABLE invoices ADD COLUMN replaces_id INTEGER');
+  if (!hasColumn('invoices', 'show_vat')) db.exec('ALTER TABLE invoices ADD COLUMN show_vat INTEGER');
+  if (!hasColumn('categories', 'warranty')) {
+    db.exec("ALTER TABLE categories ADD COLUMN warranty TEXT NOT NULL DEFAULT ''");
+    tx(() => all("SELECT id, name FROM categories WHERE kind = 'sale'").forEach(c =>
+      run('UPDATE categories SET warranty = ? WHERE id = ?', defaultWarrantyFor(c.name), c.id)));
+  }
+}
+migrate();
+
 if (!get('SELECT 1 AS x FROM categories LIMIT 1')) {
   tx(() => {
     SALE_CATEGORIES.forEach((name, i) => {
-      run('INSERT INTO categories (kind, name, color, favorite, sort) VALUES (?,?,?,?,?)',
-        'sale', name, PALETTE[i % PALETTE.length], FAVORITES.has(name) ? 1 : 0, i);
+      run('INSERT INTO categories (kind, name, color, favorite, sort, warranty) VALUES (?,?,?,?,?,?)',
+        'sale', name, PALETTE[i % PALETTE.length], FAVORITES.has(name) ? 1 : 0, i, defaultWarrantyFor(name));
     });
     EXPENSE_CATEGORIES.forEach(([name, type], i) => {
       run('INSERT INTO categories (kind, name, color, expense_type, sort) VALUES (?,?,?,?,?)',

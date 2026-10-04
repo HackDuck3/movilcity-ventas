@@ -6,8 +6,6 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { db, all, get, run, tx, getSetting, setSetting, allSettings, DEFAULT_SETTINGS, backupToTemp, FILES_DIR } = require('./db');
 
-// migración: columna para "factura que sustituye a un ticket"
-if (!all('PRAGMA table_info(invoices)').some(c => c.name === 'replaces_id')) db.exec('ALTER TABLE invoices ADD COLUMN replaces_id INTEGER');
 const auth = require('./auth');
 
 class HttpError extends Error {
@@ -225,6 +223,7 @@ function invoiceOut(inv) {
     ...inv,
     items: JSON.parse(inv.items).map(i => ({ ...i, price: euros(i.price) })),
     subtotal: euros(inv.subtotal), discount: euros(inv.discount), total: euros(inv.total),
+    show_vat: inv.show_vat == null ? !!getSetting('invoice').show_vat : !!inv.show_vat,
   };
 }
 
@@ -259,8 +258,16 @@ route('GET', '/api/invoices/:id', 'user', ({ user, params }) => {
 route('POST', '/api/invoices', 'user', ({ user, body }) => {
   const perms = getSetting('permissions');
   if (user.role !== 'admin' && !perms.worker_create_invoices) fail(403, 'No tienes permiso para crear facturas');
+  const warranties = getSetting('invoice').warranties;
   const items = (Array.isArray(body.items) ? body.items : [])
-    .map(i => ({ description: str(i.description, 200), detail: str(i.detail, 200), qty: Math.max(1, parseInt(i.qty, 10) || 1), price: cents(i.price) || 0 }))
+    .map(i => {
+      const warranty = warranties.find(w => w.name === i.warranty);
+      return {
+        description: str(i.description, 200), detail: str(i.detail, 200),
+        qty: Math.max(1, parseInt(i.qty, 10) || 1), price: cents(i.price) || 0,
+        warranty: warranty ? warranty.name : '', warranty_text: warranty ? warranty.text : '',
+      };
+    })
     .filter(i => i.description);
   if (!items.length) fail(400, 'Añade al menos una línea');
   const subtotal = items.reduce((a, i) => a + i.qty * i.price, 0);
@@ -272,6 +279,7 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
   // Una factura completa necesita identificar al cliente (nombre, NIF y domicilio)
   if (kind === 'factura' && (!str(body.customer_name) || !str(body.customer_nif) || !str(body.customer_address)))
     fail(400, 'Una factura completa necesita nombre, NIF y dirección del cliente. Si no los tienes, haz un ticket.');
+  const showVat = ('show_vat' in body ? !!body.show_vat : !!getSetting('invoice').show_vat) ? 1 : 0;
   let replaces = null;
   if (body.replaces_id) {
     replaces = get('SELECT * FROM invoices WHERE id = ?', Number(body.replaces_id));
@@ -291,10 +299,10 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
     }
     if (get('SELECT 1 AS x FROM invoices WHERE number = ? AND kind = ?', number, kind)) fail(400, `El número ${number} ya existe. Revisa la numeración en Ajustes → Facturas.`);
     const { id } = run(`INSERT INTO invoices (number, kind, date, customer_name, customer_nif, customer_address, customer_phone,
-                        items, subtotal, discount, total, notes, user_id, replaces_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                        items, subtotal, discount, total, notes, user_id, replaces_id, show_vat) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       number, kind, date, str(body.customer_name, 120), str(body.customer_nif, 30), str(body.customer_address, 200),
       str(body.customer_phone, 30), JSON.stringify(items), subtotal, discount, total, str(body.notes, 500), user.id,
-      replaces ? replaces.id : null);
+      replaces ? replaces.id : null, showVat);
 
     // Vincular a una venta ya registrada en caja (una factura que sustituye a un ticket no crea venta nueva)
     if (replaces) { /* la venta ya está registrada con el ticket */ }
@@ -422,6 +430,8 @@ route('PUT', '/api/admin/settings/:key', 'admin', ({ params, body }) => {
     const dv = def[k], v = body[k];
     if (typeof dv === 'boolean') next[k] = !!v;
     else if (typeof dv === 'number') { const n = Number(v); if (Number.isFinite(n)) next[k] = n; }
+    else if (k === 'warranties') next[k] = (Array.isArray(v) ? v : [])
+      .map(w => ({ name: str(w && w.name, 60), text: str(w && w.text, 300) })).filter(w => w.name);
     else if (Array.isArray(dv)) next[k] = (Array.isArray(v) ? v : []).map(x => str(x, 40)).filter(Boolean);
     else if (k === 'logo') next[k] = typeof v === 'string' && (v === '' || v.startsWith('data:image/')) ? v.slice(0, 1_500_000) : current[k];
     else if (k.startsWith('color') || k === 'primary' || k === 'accent') { if (isColor(v)) next[k] = v; }
@@ -442,6 +452,7 @@ function catFromBody(body, existing = {}) {
     expense_type: kind === 'expense' ? (body.expense_type === 'stock' ? 'stock' : (body.expense_type === 'operating' ? 'operating' : existing.expense_type || 'operating')) : null,
     default_price: 'default_price' in body ? cents(body.default_price) : existing.default_price ?? null,
     default_profit: 'default_profit' in body ? cents(body.default_profit) : existing.default_profit ?? null,
+    warranty: kind === 'sale' ? str(body.warranty ?? existing.warranty, 60) : '',
     favorite: 'favorite' in body ? (body.favorite ? 1 : 0) : (existing.favorite || 0),
     active: 'active' in body ? (body.active ? 1 : 0) : (existing.active ?? 1),
   };
@@ -449,16 +460,16 @@ function catFromBody(body, existing = {}) {
 route('POST', '/api/admin/categories', 'admin', ({ body }) => {
   const c = catFromBody(body);
   const sort = (get('SELECT MAX(sort) AS s FROM categories WHERE kind = ?', c.kind).s || 0) + 1;
-  const { id } = run(`INSERT INTO categories (kind, name, color, expense_type, default_price, default_profit, favorite, active, sort)
-                      VALUES (?,?,?,?,?,?,?,?,?)`, c.kind, c.name, c.color, c.expense_type, c.default_price, c.default_profit, c.favorite, c.active, sort);
+  const { id } = run(`INSERT INTO categories (kind, name, color, expense_type, default_price, default_profit, favorite, active, sort, warranty)
+                      VALUES (?,?,?,?,?,?,?,?,?,?)`, c.kind, c.name, c.color, c.expense_type, c.default_price, c.default_profit, c.favorite, c.active, sort, c.warranty);
   return { ok: true, id };
 });
 route('PUT', '/api/admin/categories/:id', 'admin', ({ body, params }) => {
   const existing = get('SELECT * FROM categories WHERE id = ?', Number(params.id));
   if (!existing) fail(404, 'No encontrada');
   const c = catFromBody(body, existing);
-  run(`UPDATE categories SET name=?, color=?, expense_type=?, default_price=?, default_profit=?, favorite=?, active=? WHERE id=?`,
-    c.name, c.color, c.expense_type, c.default_price, c.default_profit, c.favorite, c.active, existing.id);
+  run(`UPDATE categories SET name=?, color=?, expense_type=?, default_price=?, default_profit=?, favorite=?, active=?, warranty=? WHERE id=?`,
+    c.name, c.color, c.expense_type, c.default_price, c.default_profit, c.favorite, c.active, c.warranty, existing.id);
   return { ok: true };
 });
 route('POST', '/api/admin/categories/reorder', 'admin', ({ body }) => {

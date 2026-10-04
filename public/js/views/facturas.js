@@ -110,13 +110,26 @@ async function editorView(root, params, kind) {
     customer_name: fromTicket?.customer_name || '', customer_nif: fromTicket?.customer_nif || '',
     customer_address: fromTicket?.customer_address || '', customer_phone: fromTicket?.customer_phone || '',
     items: fromTicket ? fromTicket.items.map(i => ({ ...i }))
-      : [{ description: params.get('desc') || '', detail: '', qty: 1, price: params.get('precio') ? Number(params.get('precio')) : '' }],
+      : [{ description: params.get('desc') || '', detail: '', qty: 1, price: params.get('precio') ? Number(params.get('precio')) : '', warranty: '' }],
     discount: fromTicket ? fromTicket.discount : 0,
-    notes: fromTicket ? fromTicket.notes : (cfg.warranty || ''),
+    notes: fromTicket ? fromTicket.notes : '',
+    show_vat: fromTicket ? fromTicket.show_vat : !!cfg.show_vat,
     replaces_number: fromTicket?.number, replaces_date: fromTicket?.date,
   };
   const nextNumber = kind === 'ticket' ? `${cfg.ticket_prefix || ''}${cfg.ticket_next_number}` : `${cfg.prefix || ''}${cfg.next_number}`;
   const saleCats = state.categories.filter(c => c.kind === 'sale' && c.active);
+  const warrantyOptions = (selected) => ['', ...cfg.warranties.map(w => w.name)]
+    .map(name => `<option value="${esc(name)}" ${name === selected ? 'selected' : ''}>${name ? 'Garantía: ' + esc(name) : 'Sin garantía'}</option>`).join('');
+  const categoryFor = (description) => {
+    const d = (description || '').toLowerCase();
+    return saleCats.filter(c => d.startsWith(c.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
+  };
+  const suggestWarranty = (item) => {
+    if (item.warrantyChosen) return;
+    const category = categoryFor(item.description);
+    if (category && cfg.warranties.some(w => w.name === category.warranty)) item.warranty = category.warranty;
+  };
+  if (!fromTicket) draft.items.forEach(suggestWarranty);
   const req = kind === 'factura' ? ' <span class="neg">*</span>' : '';
 
   root.innerHTML = `
@@ -147,7 +160,8 @@ async function editorView(root, params, kind) {
           <div class="settings-grid">
             <label class="field">Descuento (€)<input class="money" name="discount" inputmode="decimal" placeholder="0,00" value="${draft.discount ? moneyInput(draft.discount) : ''}"></label>
             <div class="field" style="justify-content:flex-end"><div class="muted" style="font-weight:600">Total</div><div style="font-size:26px;font-weight:750" class="num" data-total></div></div>
-            <label class="field wide">Garantía / notas (aparece abajo a la izquierda)<textarea name="notes" rows="2">${esc(draft.notes)}</textarea></label>
+            <label class="field wide">Notas <span class="hint">opcional; la garantía se elige en cada línea</span><textarea name="notes" rows="2">${esc(draft.notes)}</textarea></label>
+            <label class="check wide"><input type="checkbox" name="show_vat" ${draft.show_vat ? 'checked' : ''}><span><b>Desglosar IVA</b><span class="muted">Muestra base imponible e IVA (${esc(cfg.vat_rate)}%). Desactivado: solo el total con "IVA incluido". El precio no cambia.</span></span></label>
           </div>
           <div class="notice warn hidden" data-limit></div>
           ${fromTicket ? `<div class="notice">La factura indicará que sustituye al ticket ${esc(fromTicket.number)}. La venta ya está en caja, no se duplica.</div>`
@@ -180,7 +194,8 @@ async function editorView(root, params, kind) {
       <div class="line" data-i="${i}">
         <div class="stack">
           <input type="text" data-k="description" placeholder="Descripción (ej. Samsung Galaxy A16 128gb)" value="${esc(it.description)}">
-          <input type="text" data-k="detail" placeholder="IMEI / nº de serie / detalle (opcional)" value="${esc(it.detail || '')}" style="font-size:13px">
+          <input type="text" data-k="detail" placeholder="IMEI / nº de serie / detalle (opcional)" value="${esc(it.detail || '')}">
+          <select data-k="warranty" title="Garantía de esta línea">${warrantyOptions(it.warranty || '')}</select>
         </div>
         <input type="number" min="1" data-k="qty" value="${esc(it.qty)}" title="Cantidad">
         <input type="text" class="num" data-k="price" inputmode="decimal" placeholder="Precio" value="${esc(it.price === '' ? '' : moneyInput(it.price))}" title="Precio unitario con IVA (€)">
@@ -198,7 +213,7 @@ async function editorView(root, params, kind) {
       date: form.elements.date ? form.elements.date.value : draft.date,
       customer_name: form.elements.customer_name.value, customer_nif: form.elements.customer_nif.value,
       customer_address: form.elements.customer_address.value, customer_phone: form.elements.customer_phone.value,
-      notes: form.elements.notes.value, created_at: new Date().toISOString().replace('T', ' '),
+      notes: form.elements.notes.value, show_vat: form.elements.show_vat.checked, created_at: new Date().toISOString().replace('T', ' '),
     };
   }
   function drawPreview() {
@@ -221,19 +236,28 @@ async function editorView(root, params, kind) {
 
   linesEl.addEventListener('input', (e) => {
     const line = e.target.closest('[data-i]'); if (!line) return;
-    draft.items[Number(line.dataset.i)][e.target.dataset.k] = e.target.value; drawPreview();
+    const item = draft.items[Number(line.dataset.i)];
+    item[e.target.dataset.k] = e.target.value;
+    if (e.target.dataset.k === 'warranty') item.warrantyChosen = true;
+    drawPreview();
+  });
+  linesEl.addEventListener('change', (e) => {
+    const line = e.target.closest('[data-i]'); if (!line || e.target.dataset.k !== 'description') return;
+    const item = draft.items[Number(line.dataset.i)];
+    suggestWarranty(item);
+    line.querySelector('[data-k=warranty]').value = item.warranty || '';
+    drawPreview();
   });
   linesEl.addEventListener('click', (e) => {
     const rm = e.target.closest('[data-rm]'); if (!rm) return;
     draft.items.splice(Number(rm.dataset.rm), 1); drawLines(); drawPreview();
   });
-  root.querySelector('[data-add-line]').addEventListener('click', () => { draft.items.push({ description: '', detail: '', qty: 1, price: '' }); drawLines(); drawPreview(); });
+  root.querySelector('[data-add-line]').addEventListener('click', () => { draft.items.push({ description: '', detail: '', qty: 1, price: '', warranty: '' }); drawLines(); drawPreview(); });
   form.addEventListener('input', drawPreview);
   const reg = form.elements.register;
   if (reg) reg.addEventListener('change', () => root.querySelector('[data-register]').classList.toggle('hidden', !reg.checked));
   if (form.elements.reg_category) linesEl.addEventListener('change', () => {
-    const d = (draft.items[0].description || '').toLowerCase();
-    const match = saleCats.find(c => d.startsWith(c.name.toLowerCase()));
+    const match = categoryFor(draft.items[0].description);
     if (match) form.elements.reg_category.value = match.id;
   });
 
