@@ -1,29 +1,29 @@
-// Arranque, inicio de sesión, menú y navegación.
+// Boot, login screen, layout and hash-based navigation.
 import { api, state, esc, icon, toast, modal, applyAppearance, isAdmin, can } from './core.js';
-import { cajaView } from './views/caja.js';
+import { cashRegisterView } from './views/cash-register.js';
 import { dashboardView } from './views/dashboard.js';
-import { movimientosView } from './views/movimientos.js';
-import { ticketsView, facturasView } from './views/facturas.js';
-import { archivosView } from './views/archivos.js';
-import { ajustesView } from './views/ajustes.js';
+import { movementsView } from './views/movements.js';
+import { ticketsView, invoicesView } from './views/invoices.js';
+import { filesView } from './views/files.js';
+import { settingsView } from './views/settings.js';
 
 const root = document.getElementById('root');
 
-// Rutas: [ruta, vista, visible para, icono, texto del menú]
+// [url segment, view, who can see it, icon, menu label]
 const ROUTES = [
   ['panel', dashboardView, 'admin', 'chart', 'Panel'],
-  ['caja', cajaView, 'all', 'cash', 'Caja'],
+  ['caja', cashRegisterView, 'all', 'cash', 'Caja'],
   ['tickets', ticketsView, 'invoices', 'receipt', 'Tickets'],
-  ['facturas', facturasView, 'invoices', 'invoice', 'Facturas'],
-  ['movimientos', movimientosView, 'admin', 'list', 'Movimientos'],
-  ['archivos', archivosView, 'files', 'folder', 'Archivos'],
-  ['ajustes', ajustesView, 'admin', 'settings', 'Ajustes'],
+  ['facturas', invoicesView, 'invoices', 'invoice', 'Facturas'],
+  ['movimientos', movementsView, 'admin', 'list', 'Movimientos'],
+  ['archivos', filesView, 'files', 'folder', 'Archivos'],
+  ['ajustes', settingsView, 'admin', 'settings', 'Ajustes'],
 ];
 const allowed = (who) => who === 'all' || (who === 'admin' && isAdmin()) ||
   (who === 'invoices' && state.settings.modules.invoices && can('worker_create_invoices')) ||
   (who === 'files' && isAdmin() && state.settings.modules.files);
 
-// ------------------------------------------------------------ pantallas de acceso
+// ---- Login / first-run setup
 function authScreen(status) {
   const setup = status.needsSetup;
   root.innerHTML = `<div class="auth"><div class="card">
@@ -50,7 +50,7 @@ function authScreen(status) {
   });
 }
 
-// ------------------------------------------------------------ estructura
+// ---- Layout
 function layout() {
   const s = state.settings;
   const links = ROUTES.filter(r => allowed(r[2]));
@@ -87,10 +87,10 @@ function layout() {
   root.querySelector('[data-pass-m]').onclick = (e) => { e.preventDefault(); changePassword(); };
   root.querySelector('[data-pass]').onclick = changePassword;
   root.querySelector("[data-theme-toggle]").onclick = () => {
-    // preferencia local de este dispositivo (el modo por defecto se elige en Ajustes)
+    // Per-device preference; the default theme is chosen in Settings.
     const dark = document.documentElement.dataset.theme !== 'dark';
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch { /* storage unavailable */ }
     root.querySelector("[data-theme-toggle]").innerHTML = icon(dark ? 'sun' : 'moon');
   };
 }
@@ -112,7 +112,7 @@ function changePassword() {
   });
 }
 
-// ------------------------------------------------------------ navegación
+// ---- Navigation
 async function router() {
   if (!state.user) return;
   const hash = location.hash.replace(/^#\/?/, '');
@@ -123,7 +123,7 @@ async function router() {
   if (!r) { location.replace('#/' + (isAdmin() ? 'panel' : 'caja')); return; }
   root.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', a.dataset.nav === name));
   const view = document.getElementById('view');
-  const fresh = document.createElement('div'); // contenedor nuevo: evita que se acumulen eventos entre vistas
+  const fresh = document.createElement('div'); // fresh container, so listeners from the previous view are dropped
   view.replaceChildren(fresh);
   window.scrollTo(0, 0);
   try { await r[1](fresh, params, sub); }
@@ -135,22 +135,22 @@ async function boot() {
   try { status = await api('/status'); } catch (e) { root.innerHTML = `<div class="empty">No se puede conectar con el servidor.</div>`; return; }
   applyAppearance(status.appearance);
   let me = null;
-  try { me = await api('/me'); } catch { /* no hay sesión */ }
+  try { me = await api('/me'); } catch { /* not logged in */ }
   if (!me || status.needsSetup) return authScreen(status);
   state.user = me.user; state.settings = me.settings; state.today = me.today;
   state.categories = await api('/categories');
   applyAppearance(state.settings.appearance);
-  try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch { /* sin almacenamiento */ }
+  try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch { /* storage unavailable */ }
   layout();
   router();
 }
 
 window.addEventListener('hashchange', router);
 window.addEventListener('layout-refresh', () => { layout(); router(); });
-// Si la app se queda abierta toda la noche, al cambiar de día recarga para que "hoy" sea correcto.
+// If the app stays open overnight, reload when the day changes so "today" is right.
 setInterval(async () => {
   if (!state.user) return;
-  try { const me = await api('/me'); if (me.today !== state.today) location.reload(); } catch { /* ignorar */ }
+  try { const me = await api('/me'); if (me.today !== state.today) location.reload(); } catch { /* ignore */ }
 }, 5 * 60e3);
 
 boot();

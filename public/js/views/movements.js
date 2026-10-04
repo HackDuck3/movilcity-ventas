@@ -1,8 +1,8 @@
-// Listado completo de movimientos (solo administrador): filtrar, corregir, borrar, recuperar y exportar.
+// Full list of movements (admin only): filter, fix, delete, restore and export.
 import { api, state, esc, icon, money, chip, fmtDate, fmtTime, today, toast, confirmDialog, modal, debounce } from '../core.js';
-import { mountMovementForm } from '../movform.js';
+import { mountMovementForm } from '../movement-form.js';
 
-export async function movimientosView(root, params) {
+export async function movementsView(root, params) {
   const t = today();
   const f = {
     from: params.get('desde') || t.slice(0, 8) + '01', to: params.get('hasta') || t,

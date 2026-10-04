@@ -36,7 +36,7 @@ Necesitas: una cuenta de GitHub y `git` instalado.
 ### 2. Pon tu usuario de GitHub en los ficheros
 Descomprime el zip, abre una terminal en la carpeta `movilcity-ventas` y ejecuta (cambia `TU_USUARIO`):
 ```bash
-bash scripts/configurar-github.sh TU_USUARIO
+bash scripts/set-github-user.sh TU_USUARIO
 ```
 En Windows, ejecútalo desde **Git Bash**.
 
@@ -108,7 +108,7 @@ El flujo de trabajo recomendado:
    Los cambios en `public/` se ven al recargar el navegador; los de `server.js` o `src/` necesitan reiniciar con Ctrl+C y `npm start`.
 2. Cuando funcione, publica una versión nueva:
    ```bash
-   bash scripts/publicar-version.sh 1.2.0
+   bash scripts/release.sh 1.2.0
    ```
    Este script cambia el número de versión en todos los ficheros, hace commit, crea la etiqueta y lo sube a GitHub.
 3. Espera el **check verde** en Actions (3-5 min).

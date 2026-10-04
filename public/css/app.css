@@ -1,5 +1,5 @@
-/* Movil City · Control de ventas — estilos
-   Los colores principales se cambian desde Ajustes > Apariencia (variables --primary / --accent). */
+/* Movil City · sales control — styles
+   The main colours are set from Settings > Appearance (--primary / --accent variables). */
 :root {
   --primary: #283593;
   --accent: #e91e63;
@@ -110,7 +110,7 @@ a { color: var(--primary); }
   .mobile-bar a.active { color: var(--primary); }
 }
 
-/* ------------------------------------------------------------------ componentes */
+/* ------------------------------------------------------------------ components */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
 .card-pad { padding: var(--pad); }
 .card h2, .card h3 { margin: 0 0 12px; font-size: 15px; }
@@ -264,7 +264,7 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .auth form { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
 .auth .btn { padding: 11px; }
 
-/* ------------------------------------------------------------------ gráficos */
+/* ------------------------------------------------------------------ charts */
 .chart { position: relative; width: 100%; }
 .chart svg { display: block; width: 100%; overflow: visible; }
 .chart .axis text { fill: var(--text-3); font-size: 11px; }
@@ -289,7 +289,7 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .hbar .val { font-variant-numeric: tabular-nums; font-weight: 650; text-align: right; }
 .hbar .val small { color: var(--text-3); font-weight: 500; margin-left: 4px; }
 
-/* ------------------------------------------------------------------ ajustes */
+/* ------------------------------------------------------------------ settings */
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .settings-grid .wide { grid-column: 1 / -1; }
 @media (max-width: 700px) { .settings-grid { grid-template-columns: 1fr; } }
@@ -302,7 +302,7 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .notice.warn { background: #fef3c7; border-color: #fcd34d; color: #78350f; }
 :root[data-theme="dark"] .notice.warn { background: #3a2e0d; border-color: #6b5313; color: #fde68a; }
 
-/* ------------------------------------------------------------------ facturas */
+/* ------------------------------------------------------------------ invoices */
 .inv-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
 @media (max-width: 1200px) { .inv-layout { grid-template-columns: 1fr; } }
 .inv-lines .line { display: grid; grid-template-columns: 1fr 64px 100px 34px; gap: 8px; margin-bottom: 8px; align-items: start; }
@@ -353,7 +353,7 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .invoice-doc .doc-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--doc-line); font-size: 10.5px; color: var(--doc-muted); text-align: center; white-space: pre-line; }
 .invoice-doc .void-stamp { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 90px; font-weight: 800; color: rgba(220, 38, 38, .22); border: 8px solid rgba(220, 38, 38, .22); padding: 0 30px; border-radius: 16px; }
 
-/* Ticket térmico 80 mm */
+/* 80 mm thermal ticket */
 .ticket-doc {
   width: 72mm; background: #fff; color: #000; padding: 4mm 2mm; margin: 0 auto; font: 12px/1.35 ui-monospace, "Courier New", monospace;
   box-shadow: 0 2px 12px rgba(0,0,0,.12);
@@ -367,7 +367,7 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .ticket-doc .thanks { margin-top: 6px; }
 .ticket-doc .logo { max-width: 40mm; max-height: 18mm; display: block; margin: 0 auto 4px; filter: grayscale(1); }
 
-/* ------------------------------------------------------------------ impresión */
+/* ------------------------------------------------------------------ print */
 #print-root { display: none; }
 @media print {
   body.printing > *:not(#print-root) { display: none !important; }
@@ -378,7 +378,7 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
-/* ------------------------------------------------------------------ archivos */
+/* ------------------------------------------------------------------ files */
 .files-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 820px) { .files-layout { grid-template-columns: 1fr; } }
 .files-folders { padding: 8px; display: flex; flex-direction: column; gap: 2px; }

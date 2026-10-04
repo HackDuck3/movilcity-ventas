@@ -7,6 +7,7 @@
   "engines": { "node": ">=22.13" },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/api.test.js",
     "demo": "node --disable-warning=ExperimentalWarning scripts/demo-data.js && DATA_DIR=./data-demo PORT=3001 node --disable-warning=ExperimentalWarning server.js"
   },
   "license": "UNLICENSED"

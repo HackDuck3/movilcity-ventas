@@ -1,6 +1,6 @@
-// Utilidades compartidas: API, formato, iconos, modales y avisos.
+// Shared helpers: API client, formatting, icons, modals and toasts.
 
-// ------------------------------------------------------------ API
+// ---- API
 export async function api(path, { method = 'GET', body } = {}) {
   const res = await fetch('/api' + path, {
     method,
@@ -9,7 +9,7 @@ export async function api(path, { method = 'GET', body } = {}) {
     credentials: 'same-origin',
   });
   let data = null;
-  try { data = await res.json(); } catch { /* sin cuerpo */ }
+  try { data = await res.json(); } catch { /* no body */ }
   if (res.status === 401 && path !== '/login' && path !== '/me') {
     location.hash = '#/login';
     location.reload();
@@ -18,13 +18,13 @@ export async function api(path, { method = 'GET', body } = {}) {
   return data;
 }
 
-// ------------------------------------------------------------ estado global
+// ---- Global state
 export const state = { user: null, settings: null, categories: [], today: null };
 export const isAdmin = () => state.user && state.user.role === 'admin';
 export const perms = () => state.settings.permissions;
 export const can = (p) => isAdmin() || !!perms()[p];
 
-// ------------------------------------------------------------ formato
+// ---- Formatting
 const moneyFmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' });
 export const money = (n) => moneyFmt.format(Number(n) || 0);
 export const moneyShort = (n) => {
@@ -35,7 +35,7 @@ export const moneyShort = (n) => {
 export const parseMoney = (s) => {
   if (s === null || s === undefined) return NaN;
   const t = String(s).trim().replace(/\s|€/g, '');
-  // admite "1.234,56", "1234,56" y "1234.56"
+  // accepts "1.234,56", "1234,56" and "1234.56"
   const norm = t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t;
   return norm === '' ? NaN : Number(norm);
 };
@@ -52,7 +52,7 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp
 export const chip = (name, color) => `<span class="chip" style="--c:${esc(color || '#64748b')}">${esc(name || '—')}</span>`;
 export const debounce = (fn, ms = 250) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
-// ------------------------------------------------------------ iconos (SVG en línea, sin dependencias)
+// ---- Icons (inline SVG paths)
 const P = {
   cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
   chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
@@ -87,7 +87,7 @@ const P = {
 };
 export const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
 
-// ------------------------------------------------------------ avisos
+// ---- Toasts
 export function toast(msg, type = '') {
   const el = document.createElement('div');
   el.className = 'toast ' + type; el.textContent = msg;
@@ -95,7 +95,7 @@ export function toast(msg, type = '') {
   setTimeout(() => el.remove(), type === 'err' ? 5000 : 2600);
 }
 
-// ------------------------------------------------------------ modales
+// ---- Modals
 export function modal({ title, body, foot = '', wide = false, onMount }) {
   const back = document.createElement('div');
   back.className = 'modal-back';
@@ -132,7 +132,7 @@ export function confirmDialog(message, { okText = 'Aceptar', danger = false } = 
   });
 }
 
-// ------------------------------------------------------------ apariencia
+// ---- Appearance
 export function applyAppearance(app) {
   const r = document.documentElement;
   r.style.setProperty('--primary', app.primary || '#283593');
@@ -143,7 +143,7 @@ export function applyAppearance(app) {
   document.querySelector('meta[name=theme-color]').setAttribute('content', app.primary || '#283593');
 }
 
-// Fecha de "hoy" según el servidor (evita desajustes si el reloj del móvil va mal)
+// "Today" comes from the server, so a wrong clock on a phone does not matter.
 export const today = () => state.today || isoDate(new Date());
 
 export function formToObject(form) {

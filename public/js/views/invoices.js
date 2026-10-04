@@ -1,18 +1,19 @@
-// Tickets (facturas simplificadas) y Facturas completas: dos secciones con su propia numeración.
+// Tickets (simplified invoices) and full invoices: two sections, each with its own number series.
 import { api, state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, moneyInput, confirmDialog, debounce } from '../core.js';
 import { invoiceA4, ticket80, printDocument } from '../invoice.js';
 
 const META = {
-  ticket: { section: 'tickets', one: 'ticket', One: 'Ticket', many: 'Tickets', nuevo: 'Nuevo ticket' },
-  factura: { section: 'facturas', one: 'factura', One: 'Factura', many: 'Facturas', nuevo: 'Nueva factura' },
+  ticket: { section: 'tickets', one: 'ticket', One: 'Ticket', many: 'Tickets', createLabel: 'Nuevo ticket' },
+  factura: { section: 'facturas', one: 'factura', One: 'Factura', many: 'Facturas', createLabel: 'Nueva factura' },
 };
-const LIMIT_SIMPLE = 400;      // límite general de la factura simplificada (IVA incluido)
-const LIMIT_RETAIL = 3000;     // límite para ventas al por menor
+// Legal limits (VAT included) for a simplified invoice in Spain: general and retail.
+const LIMIT_SIMPLE = 400;
+const LIMIT_RETAIL = 3000;
 
-export const ticketsView = (root, params, sub) => docsView(root, params, sub, 'ticket');
-export const facturasView = (root, params, sub) => docsView(root, params, sub, 'factura');
+export const ticketsView = (root, params, sub) => documentsView(root, params, sub, 'ticket');
+export const invoicesView = (root, params, sub) => documentsView(root, params, sub, 'factura');
 
-function docsView(root, params, sub, kind) {
+function documentsView(root, params, sub, kind) {
   if (sub === 'nueva') return editorView(root, params, kind);
   if (sub) return detailView(root, Number(sub));
   return listView(root, params, kind);
@@ -29,7 +30,7 @@ function fiscalWarning() {
     ${isAdmin() ? '<a href="#/ajustes?tab=tienda">Rellénalos en Ajustes → Tienda</a>.' : 'Avisa al administrador.'}</div>`;
 }
 
-// ------------------------------------------------------------------ listado
+// ---- List
 async function listView(root, params, kind) {
   const M = META[kind];
   root.innerHTML = `
@@ -37,7 +38,7 @@ async function listView(root, params, kind) {
       ? 'Facturas simplificadas para el cliente de mostrador · serie ' + esc(state.settings.invoice.ticket_prefix || '(sin prefijo)')
       : 'Facturas completas con datos del cliente · serie ' + esc(state.settings.invoice.prefix || '(sin prefijo)')}</div></div>
       <span class="spacer"></span>
-      <a class="btn btn-primary" href="#/${M.section}/nueva">${icon('plus')} ${M.nuevo}</a>
+      <a class="btn btn-primary" href="#/${M.section}/nueva">${icon('plus')} ${M.createLabel}</a>
     </div>
     ${fiscalWarning()}
     <div class="card card-pad" style="margin-bottom:14px"><input type="search" data-q placeholder="Buscar por número, cliente, producto o IMEI…" value="${esc(params.get('q') || '')}"></div>
@@ -63,7 +64,7 @@ async function listView(root, params, kind) {
   await load();
 }
 
-// ------------------------------------------------------------------ detalle
+// ---- Detail
 async function detailView(root, id) {
   let inv;
   try { inv = await api(`/invoices/${id}`); } catch (e) { root.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
@@ -97,7 +98,7 @@ async function detailView(root, id) {
   });
 }
 
-// ------------------------------------------------------------------ editor
+// ---- Editor
 async function editorView(root, params, kind) {
   const s = state.settings, cfg = s.invoice, M = META[kind];
   const fromSale = params.get('venta');
@@ -135,7 +136,7 @@ async function editorView(root, params, kind) {
   root.innerHTML = `
     <div class="page-head">
       <a class="btn btn-icon" href="#/${M.section}" title="Volver">${icon('left')}</a>
-      <div><h1>${M.nuevo}${fromTicket ? ` <span class="faint" style="font-weight:500">a partir del ticket ${esc(fromTicket.number)}</span>` : ''}</h1>
+      <div><h1>${M.createLabel}${fromTicket ? ` <span class="faint" style="font-weight:500">a partir del ticket ${esc(fromTicket.number)}</span>` : ''}</h1>
         <div class="sub">N.º previsto: ${esc(nextNumber)}</div></div>
     </div>
     ${fiscalWarning()}

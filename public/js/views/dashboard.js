@@ -1,4 +1,4 @@
-// Panel del dueño / administrador
+// Owner dashboard (admin only).
 import { api, esc, money, today, addDays, fmtDate, fmtMonth, fromIso, isoDate, toast } from '../core.js';
 import { groupedBars, hBars } from '../charts.js';
 
@@ -109,7 +109,7 @@ async function summaryView(body, params) {
     <div class="card" data-days-card><div class="card-head"><h3>Día a día</h3><span class="faint">pulsa un día para ver su caja</span></div><div class="table-wrap" data-days></div></div>
   `;
 
-  // ---- gráfico: por día (≤ 62 días) o por mes
+  // ---- chart: per day (up to 62 days) or per month
   const byDayMap = Object.fromEntries(d.byDay.map(r => [r.date, r]));
   let labels = [], titles = [], sales = [], profit = [], keys = [];
   if (nDays <= 62) {
@@ -146,7 +146,7 @@ async function summaryView(body, params) {
     <tbody>${d.byUser.map(u => `<tr><td>${esc(u.name)}</td><td class="r num">${u.n}</td><td class="r num">${money(u.amount)}</td><td class="r num">${money(u.profit)}</td></tr>`).join('')}</tbody></table>`
     : '<div class="empty">Sin ventas</div>';
 
-  // ---- tabla día a día (como tus hojas mensuales, pero automática)
+  // ---- day-by-day table
   if (nDays > 62) { content.querySelector('[data-days-card]').classList.add('hidden'); return; }
   const rows = [];
   for (let x = to; x >= from; x = addDays(x, -1)) {

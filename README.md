@@ -100,6 +100,8 @@ Son dos secciones separadas, cada una con su **propia serie de numeración**, co
 - Desde la **Caja**, cada venta tiene dos iconos: **hacer ticket** o **hacer factura**. También puedes pulsar *Guardar y hacer ticket / factura* al registrarla.
 - **Convertir en factura**: si un cliente con ticket vuelve pidiendo factura, abre el ticket y pulsa *Convertir en factura*. La factura indica que "sustituye a la factura simplificada nº T-X" y la venta no se duplica en caja.
 - **Tus datos fiscales** (Ajustes → Tienda: nombre y apellidos del titular, NIF y dirección) aparecen automáticamente en todos los PDF. Si faltan, la app te avisa.
+- **Garantía por tipo de producto**: en *Ajustes → Tickets y facturas* defines los tipos de garantía (producto nuevo, segunda mano, reparación, software…) y en *Ajustes → Productos* eliges cuál tiene cada producto. Al escribir una línea se propone sola y puedes cambiarla; el texto se imprime en el documento.
+- **Desglosar IVA**: interruptor en cada ticket o factura. Activado muestra base imponible e IVA; desactivado muestra solo el total con "IVA incluido". El precio es el mismo en los dos casos.
 - **PDF**: botón *Imprimir / Guardar PDF* y en "Destino" elige **Guardar como PDF**.
 - No se borran: se **anulan** (quedan marcados y la numeración no se reutiliza).
 
@@ -126,28 +128,18 @@ Todo desde **Ajustes**, sin tocar código:
 | Usuarios | Altas, bajas, roles, cambiar PIN |
 | Permisos | Qué ve el trabajador (vendido/beneficio/gastos del día), si puede apuntar gastos o hacer facturas, minutos para corregir, días de historial |
 | Ventas | Coste/beneficio, formas de pago, descripción obligatoria a partir de X € (útil para obligar a poner el IMEI) |
-| Tickets y facturas | Series y numeración, títulos, formato del ticket, garantía, pie, IVA, colores |
+| Tickets y facturas | Series y numeración, títulos, formato del ticket, **tipos de garantía**, pie, IVA, colores |
 | Archivos | Carpetas sugeridas y tamaño máximo |
 | Módulos | Activar/desactivar tickets y facturas, formas de pago y archivos |
 | Datos y copias | Exportar CSV, descargar copia de seguridad, **importar tus hojas antiguas** |
 
 ### Si quieres tocar el código
+Lee **[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)**: explica cómo está organizado el proyecto, cómo viaja una petición, el modelo de datos y dónde tocar para cada tipo de cambio.
+
+```bash
+npm run demo     # app con datos de ejemplo → http://localhost:3001
+npm test         # comprueba que la API sigue funcionando después de un cambio
 ```
-server.js            Servidor HTTP (sin Express)
-src/db.js            Base de datos, categorías iniciales y AJUSTES POR DEFECTO
-src/api.js           Toda la API y los PERMISOS (aquí se decide qué ve cada rol)
-src/auth.js          Contraseñas (scrypt) y sesiones
-public/css/app.css   Estilos
-public/js/app.js     Menú y navegación
-public/js/views/     Una pantalla por archivo: caja, dashboard, movimientos, facturas (tickets y facturas), archivos, ajustes
-Dockerfile           Imagen para Umbrel / Docker
-atik-movilcity/      Paquete de la app para la tienda comunitaria de Umbrel
-scripts/             demo, publicar versión, configurar GitHub, recuperar contraseña
-public/js/invoice.js Plantilla de la factura A4 y del ticket
-public/js/movform.js Formulario de venta/gasto
-```
-- **Añadir un ajuste nuevo**: añádelo en `DEFAULT_SETTINGS` (`src/db.js`) y en `SCHEMAS` (`public/js/views/ajustes.js`). El formulario se genera solo.
-- **Añadir una pantalla**: crea `public/js/views/mi-vista.js` y regístrala en `ROUTES` (`public/js/app.js`).
 - Tras cambiar código en la Pi: `sudo systemctl restart movilcity` (los cambios en `public/` basta con recargar el navegador).
 
 ---

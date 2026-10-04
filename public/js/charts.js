@@ -1,4 +1,4 @@
-// Gráficos SVG ligeros (sin librerías: funciona sin internet en la Raspberry Pi)
+// Small SVG charts with no library, so they work offline.
 import { esc, money, moneyShort } from './core.js';
 
 let tipEl;
@@ -25,8 +25,8 @@ function niceMax(v) {
 }
 
 /**
- * Barras agrupadas por día/mes.
- * opts: { labels: [], titles: [] (texto del tooltip), series: [{ name, color, values }], height, onClick(i) }
+ * Grouped bars per day or month.
+ * opts: { labels: [], titles: [] (tooltip text), series: [{ name, color, values }], height, onClick(i) }
  */
 export function groupedBars(container, opts) {
   const { labels, series, height = 240, titles = labels, onClick } = opts;
@@ -48,13 +48,13 @@ export function groupedBars(container, opts) {
   const bw = Math.max(1.5, (groupW - gap * (series.length - 1)) / series.length);
 
   let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img">`;
-  // rejilla
+  // grid
   for (let i = 0; i <= 4; i++) {
     const v = lo + ((maxV - lo) * i) / 4, yy = y(v);
     s += `<line class="gridline" x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}"/>`;
     s += `<g class="axis"><text x="${m.l - 8}" y="${yy + 4}" text-anchor="end">${esc(moneyShort(v))}</text></g>`;
   }
-  // barras (extremo superior redondeado, anclado a la base)
+  // bars: rounded top, anchored to the baseline
   labels.forEach((_, i) => {
     const gx = m.l + band * i + (band - groupW) / 2;
     series.forEach((se, j) => {
@@ -70,13 +70,13 @@ export function groupedBars(container, opts) {
     });
   });
   s += `<line class="baseline" x1="${m.l}" x2="${W - m.r}" y1="${y(0)}" y2="${y(0)}"/>`;
-  // etiquetas eje X (se saltan si no caben)
+  // x-axis labels, skipped when they would overlap
   const every = Math.ceil(n / Math.max(1, Math.floor(iw / 38)));
   labels.forEach((l, i) => {
     if (i % every) return;
     s += `<g class="axis"><text x="${m.l + band * i + band / 2}" y="${H - 8}" text-anchor="middle">${esc(l)}</text></g>`;
   });
-  // zonas de interacción (más grandes que la barra)
+  // hover/click areas, larger than the bar itself
   labels.forEach((_, i) => {
     s += `<rect data-i="${i}" x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ih}" fill="transparent" style="cursor:${onClick ? 'pointer' : 'default'}"/>`;
   });
@@ -92,12 +92,12 @@ export function groupedBars(container, opts) {
   if (onClick) svg.addEventListener('click', (e) => { const i = e.target.dataset.i; if (i !== undefined) { hideTip(); onClick(Number(i)); } });
 }
 
-/** Barras horizontales (ranking). items: [{ label, value, extra }] */
+/** Horizontal ranking bars. items: [{ label, value, extra }] */
 export function hBars(container, items, { color = 'var(--series-1)', max = 10, fmt = money } = {}) {
   if (!items.length) { container.innerHTML = '<div class="empty">Sin datos en este periodo</div>'; return; }
   const list = items.slice(0, max);
   const top = Math.max(...list.map(i => Math.abs(i.value)), 1);
-  // el resto se resume en una fila sin barra (una barra "Otros" engañaría en un ranking)
+  // The remainder is one row without a bar: an "Others" bar would mislead in a ranking.
   if (items.length > max) {
     const rest = items.slice(max);
     list.push({ label: `Otros (${rest.length})`, value: rest.reduce((a, b) => a + b.value, 0), extra: '', other: true });

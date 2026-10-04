@@ -1,5 +1,5 @@
-// Cambia la contraseña de un usuario desde la terminal (por si se olvida la del administrador).
-// Uso:  node scripts/reset-password.js <usuario> <nueva-contraseña>
+// Changes a user's password from the terminal, for when the admin password is lost.
+// Usage:  node scripts/reset-password.js <username> <new-password>
 'use strict';
 const [, , username, password] = process.argv;
 if (!username || !password || password.length < 4) {

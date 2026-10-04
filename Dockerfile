@@ -1,4 +1,4 @@
-# Imagen ligera (~60 MB) para Umbrel, Docker o Portainer. Funciona en Raspberry Pi (arm64) y PC (amd64).
+# Small image (~60 MB) for Umbrel, Docker or Portainer. Runs on Raspberry Pi (arm64) and PC (amd64).
 FROM node:22-alpine
 
 RUN apk add --no-cache tzdata
@@ -13,7 +13,7 @@ COPY src ./src
 COPY public ./public
 COPY scripts ./scripts
 
-# usuario "node" (uid 1000), el mismo que usa Umbrel para los datos de las apps
+# The "node" user (uid 1000) is the one Umbrel uses for app data.
 RUN mkdir -p /data && chown node:node /data
 USER node
 

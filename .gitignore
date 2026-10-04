@@ -1,4 +1,4 @@
-# datos reales de la tienda: NUNCA se suben a GitHub
+# Real shop data: never commit
 /data/
 /data-demo/
 node_modules/
@@ -6,7 +6,7 @@ node_modules/
 *.db-wal
 *.db-shm
 
-# información personal / de la empresa: tampoco se sube
+# Personal / company information: never commit
 .env
 .env.*
 *.local.json

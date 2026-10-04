@@ -1,11 +1,11 @@
-// Archivos de la tienda: solo administrador. Contratos, facturas de proveedores, impuestos, seguros...
+// Shop documents (admin only): contracts, supplier invoices, taxes, insurance...
 import { api, state, esc, icon, toast, modal, confirmDialog, debounce, fmtDate } from '../core.js';
 
 const fmtSize = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1).replace('.', ',')} MB`;
 const iconFor = (mime) => mime.startsWith('image/') ? 'image' : mime === 'application/pdf' ? 'invoice' : 'file';
 const canPreview = (mime) => /^(application\/pdf|image\/(png|jpe?g|gif|webp)|text\/plain)$/.test(mime);
 
-export async function archivosView(root, params) {
+export async function filesView(root, params) {
   let folder = params.get('carpeta') || '';
   const suggested = state.settings.files.folders || [];
 
@@ -61,7 +61,7 @@ export async function archivosView(root, params) {
       : `<div class="empty">${folder ? 'Esta carpeta está vacía' : 'Todavía no hay archivos. Sube contratos, facturas de proveedores, seguros…'}</div>`;
   }
 
-  // ---- subida (con barra de progreso)
+  // ---- upload with progress bar
   function upload(file) {
     return new Promise((resolve) => {
       const row = document.createElement('div');
@@ -101,7 +101,7 @@ export async function archivosView(root, params) {
   drop.addEventListener('dragleave', () => drop.classList.remove('over'));
   drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); uploadAll(e.dataTransfer.files); });
 
-  // ---- carpetas, buscar, editar, borrar
+  // ---- folders, search, edit, delete
   $('[data-folders]').addEventListener('click', (e) => {
     const a = e.target.closest('[data-folder]'); if (!a) return; e.preventDefault();
     folder = a.dataset.folder; if (folder) target.value = folder; load();

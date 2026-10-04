@@ -1,5 +1,4 @@
-// Ajustes (estilo "panel de WordPress"): todo se configura desde aquí sin tocar código.
-// Para añadir una opción nueva: añádela en DEFAULT_SETTINGS (src/db.js) y en SCHEMAS (abajo).
+// Settings screen. To add an option: add it to DEFAULT_SETTINGS (src/defaults.js) and to SCHEMAS below.
 import { api, state, esc, icon, toast, modal, applyAppearance, moneyInput, parseMoney, today, confirmDialog } from '../core.js';
 
 const TABS = [
@@ -7,7 +6,7 @@ const TABS = [
   ['usuarios', 'Usuarios'], ['permisos', 'Permisos'], ['ventas', 'Ventas'], ['facturas', 'Tickets y facturas'], ['archivos', 'Archivos'], ['modulos', 'Módulos'], ['datos', 'Datos y copias'],
 ];
 
-// Formularios generados automáticamente a partir de este esquema
+// Each entry becomes a form. Field: [name, type, label, hint, wide, options]
 const SCHEMAS = {
   tienda: { key: 'shop', intro: 'Estos datos aparecen en el PDF de cada ticket y factura. Como autónomo, en las facturas deben figurar tu nombre y apellidos y tu NIF (el nombre comercial es opcional).', fields: [
     ['name', 'text', 'Nombre comercial', 'El nombre grande de arriba (ej. Movil City)'],
@@ -58,7 +57,7 @@ const SCHEMAS = {
   ] },
 };
 
-export async function ajustesView(root, params) {
+export async function settingsView(root, params) {
   const tab = params.get('tab') || 'tienda';
   root.innerHTML = `
     <div class="page-head"><div><h1>Ajustes</h1><div class="sub">Personaliza la aplicación a tu manera</div></div></div>
@@ -72,7 +71,7 @@ export async function ajustesView(root, params) {
   if (tab === 'datos') return dataTab(body);
 }
 
-// ------------------------------------------------------------------ formulario genérico
+// ---- Generic form built from a schema
 const pairRow = (pair = { name: '', text: '' }) => `<div class="pair">
   <input type="text" data-pair-name placeholder="Nombre" value="${esc(pair.name)}">
   <input type="text" data-pair-text placeholder="Texto que se imprime" value="${esc(pair.text)}">
@@ -164,7 +163,7 @@ function resizeImage(file, max) {
   });
 }
 
-// ------------------------------------------------------------------ categorías
+// ---- Products and expense reasons
 async function categoriesTab(body, kind) {
   const isSale = kind === 'sale';
   let cats = (await api('/categories?all=1')).filter(c => c.kind === kind);
@@ -236,7 +235,7 @@ async function categoriesTab(body, kind) {
 
 async function refreshCategories() { state.categories = await api('/categories'); }
 
-// ------------------------------------------------------------------ usuarios
+// ---- Users
 async function usersTab(body) {
   const users = await api('/admin/users');
   body.innerHTML = `
@@ -274,7 +273,7 @@ async function usersTab(body) {
   body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => open(users.find(u => u.id === Number(b.dataset.edit))));
 }
 
-// ------------------------------------------------------------------ datos
+// ---- Export, import and backup
 function dataTab(body) {
   const t = today();
   body.innerHTML = `

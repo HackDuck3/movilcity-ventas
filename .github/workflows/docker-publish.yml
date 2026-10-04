@@ -1,5 +1,5 @@
-# Construye la imagen Docker para Raspberry Pi (arm64) y PC (amd64) y la publica en GitHub Container Registry.
-# Se ejecuta al subir una etiqueta de versión (git tag v1.2.0) o a mano desde la pestaña "Actions".
+# Builds the Docker image for Raspberry Pi (arm64) and PC (amd64) and publishes it to GitHub Container Registry.
+# Runs when a version tag is pushed (git tag v1.2.0) or manually from the Actions tab.
 name: Publicar imagen Docker
 
 on:

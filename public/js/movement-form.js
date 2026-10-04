@@ -1,4 +1,4 @@
-// Formulario de venta / gasto (se usa en la Caja y al editar desde Movimientos)
+// Sale / expense form, used in the cash register and when editing from Movements.
 import { api, state, esc, icon, toast, parseMoney, moneyInput, money, can, isAdmin, today } from './core.js';
 
 /**
@@ -138,7 +138,7 @@ export function mountMovementForm(container, opts) {
       toast(`${movement ? 'Guardado' : (isSale ? 'Venta guardada' : 'Gasto guardado')}: ${c.name} ${money(amount)}`, 'ok');
       const savedId = movement ? movement.id : r.id;
       if (!movement && !opts.modalMode) {
-        // listo para la siguiente venta
+        // ready for the next sale
         selected = null; form.reset(); search.value = ''; renderCats(); updateSummary(); search.focus();
       }
       opts.onSaved && opts.onSaved({ id: savedId, docKind, body, category: c });
@@ -146,7 +146,7 @@ export function mountMovementForm(container, opts) {
     finally { btn.disabled = false; }
   }
 
-  // eventos
+  // events
   search.addEventListener('input', renderCats);
   search.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {

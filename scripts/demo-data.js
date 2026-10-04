@@ -1,5 +1,5 @@
-// Rellena una base de datos de DEMOSTRACIÓN (carpeta data-demo/) con 2 meses de ventas inventadas.
-// Uso:  npm run demo   → luego abre http://<ip>:3001  (admin / admin123 · trabajador / 1234)
+// Fills a DEMO database (data-demo/) with two months of made-up sales.
+// Usage:  npm run demo   → then open http://localhost:3001  (admin / admin123 · trabajador / 1234)
 'use strict';
 process.env.DATA_DIR = process.env.DATA_DIR || require('node:path').join(__dirname, '..', 'data-demo');
 const { all, get, run, tx } = require('../src/db');
@@ -15,7 +15,7 @@ if (!get('SELECT 1 AS x FROM users LIMIT 1')) {
 const users = all('SELECT id FROM users').map(u => u.id);
 const cat = Object.fromEntries(all('SELECT id, name FROM categories').map(c => [c.name, c.id]));
 
-// [producto, precio mín, precio máx, % de margen aprox, peso]
+// [product, min price, max price, approx. margin, weight]
 const P = [
   ['Funda', 7, 17, .7, 14], ['Protector', 7, 20, .8, 12], ['Funda y protector', 15, 25, .72, 5], ['Cascos', 7, 26, .6, 8],
   ['Cargador', 13, 29, .6, 8], ['Cable USB', 6, 10, .8, 6], ['Cable Tipo-C', 6, 12, .8, 6], ['Tarjeta SIM', 10, 15, .8, 7],
@@ -32,7 +32,7 @@ const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate(
 const end = new Date(); const start = new Date(end); start.setDate(start.getDate() - 63);
 tx(() => {
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    if (d.getDay() === 0 && Math.random() < .7) continue; // domingos casi siempre cerrado
+    if (d.getDay() === 0 && Math.random() < .7) continue; // mostly closed on Sundays
     const date = iso(d); const n = 10 + Math.floor(Math.random() * 14);
     for (let i = 0; i < n; i++) {
       const [name, lo, hi, margin] = pick();

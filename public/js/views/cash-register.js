@@ -1,8 +1,8 @@
-// Caja del día: pantalla principal del trabajador.
+// Daily cash register: the worker's main screen.
 import { api, state, esc, icon, money, chip, fmtTime, fmtDateLong, addDays, today, isAdmin, can, perms, toast, confirmDialog, modal } from '../core.js';
-import { mountMovementForm } from '../movform.js';
+import { mountMovementForm } from '../movement-form.js';
 
-export async function cajaView(root, params) {
+export async function cashRegisterView(root, params) {
   const t = today();
   let date = params.get('fecha') || t;
   const histDays = isAdmin() ? 99999 : Number(perms().worker_history_days) || 0;
@@ -136,7 +136,7 @@ export async function cajaView(root, params) {
   $('[data-next]').addEventListener('click', () => { date = addDays(date, 1); load(); });
   $('[data-today]').addEventListener('click', () => { date = t; load(); });
 
-  // atajos de teclado: V = venta, G = gasto
+  // keyboard shortcuts: V = sale (venta), G = expense (gasto)
   const onKey = (e) => {
     if (!document.body.contains(root)) return document.removeEventListener('keydown', onKey);
     if (e.target.matches('input, textarea, select') || e.ctrlKey || e.metaKey || document.querySelector('.modal-back')) return;
