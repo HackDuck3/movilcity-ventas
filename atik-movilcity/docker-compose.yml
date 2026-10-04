@@ -11,7 +11,7 @@ services:
       PROXY_AUTH_ADD: "false"
 
   web:
-    image: ghcr.io/hackduck3/movilcity-ventas:1.1.0
+    image: ghcr.io/hackduck3/movilcity-ventas:1.2.0
     user: "1000:1000"
     init: true
     restart: on-failure
