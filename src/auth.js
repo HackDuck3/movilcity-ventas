@@ -38,7 +38,7 @@ function userFromToken(token) {
   return { id: row.id, username: row.username, name: row.name, role: row.role };
 }
 
-// Limitador simple de intentos de login (por IP)
+// Login rate limit: 10 failed attempts per IP every 15 minutes.
 const attempts = new Map();
 function tooManyAttempts(ip) {
   const a = attempts.get(ip);
