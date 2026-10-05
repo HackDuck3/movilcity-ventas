@@ -130,7 +130,25 @@ CREATE TABLE IF NOT EXISTS repairs (
   amount         INTEGER,
   user_id        INTEGER REFERENCES users(id),
   created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  voided         INTEGER NOT NULL DEFAULT 0
+  voided         INTEGER NOT NULL DEFAULT 0,
+  movement_id    INTEGER REFERENCES movements(id)
+);
+
+-- Phones in stock. Selling one creates a sale movement with profit = price - cost.
+CREATE TABLE IF NOT EXISTS devices (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  brand        TEXT NOT NULL DEFAULT '',
+  model        TEXT NOT NULL,
+  imei         TEXT NOT NULL DEFAULT '',
+  condition    TEXT NOT NULL DEFAULT 'new' CHECK (condition IN ('new','used')),
+  cost         INTEGER NOT NULL,
+  price        INTEGER,
+  notes        TEXT NOT NULL DEFAULT '',
+  purchased_on TEXT NOT NULL,
+  sold_on      TEXT,
+  movement_id  INTEGER REFERENCES movements(id),
+  user_id      INTEGER REFERENCES users(id),
+  created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- Uploaded shop documents. The content lives on disk at FILES_DIR/<stored_name>.
@@ -173,6 +191,7 @@ function migrate() {
 
   if (!hasColumn('invoices', 'replaces_id')) db.exec('ALTER TABLE invoices ADD COLUMN replaces_id INTEGER');
   if (!hasColumn('invoices', 'show_vat')) db.exec('ALTER TABLE invoices ADD COLUMN show_vat INTEGER');
+  if (!hasColumn('repairs', 'movement_id')) db.exec('ALTER TABLE repairs ADD COLUMN movement_id INTEGER');
   if (!hasColumn('categories', 'warranty')) {
     db.exec("ALTER TABLE categories ADD COLUMN warranty TEXT NOT NULL DEFAULT ''");
     tx(() => all("SELECT id, name FROM categories WHERE kind = 'sale'").forEach(category =>

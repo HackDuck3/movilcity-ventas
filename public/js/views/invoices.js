@@ -140,7 +140,7 @@ async function renderDetail(root, id) {
       <span class="spacer"></span>
       <div class="seg" data-formats>
         <button data-format="a4">A4</button>
-        <button data-format="ticket">Ticket 80 mm</button>
+        <button data-format="ticket">Ticket térmico</button>
       </div>
       <button class="btn btn-primary" data-print>${icon('print')} Imprimir / Guardar PDF</button>
       ${canConvert ? `
@@ -201,10 +201,14 @@ async function initialDraft(params, kind) {
       show_vat: sourceTicket.show_vat,
     };
   }
+  // Other screens (cash register, repairs, stock) open the editor with the first line filled in.
   const firstItem = {
     ...emptyItem(),
     description: params.get('desc') || '',
+    detail: params.get('detalle') || '',
     price: params.get('precio') ? Number(params.get('precio')) : '',
+    warranty: params.get('garantia') || '',
+    warrantyChosenByUser: !!params.get('garantia'),
   };
   return {
     sourceTicket: null,

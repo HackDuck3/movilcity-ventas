@@ -74,7 +74,10 @@ const SCHEMAS = {
       { name: 'next_number', type: 'number', label: 'Próximo número de factura' },
       { name: 'ticket_title', type: 'text', label: 'Título en tickets', hint: 'Nombre legal: "Factura simplificada"' },
       { name: 'title', type: 'text', label: 'Título en facturas' },
-      { name: 'ticket_format', type: 'select', label: 'Formato de impresión de los tickets', options: [['ticket', 'Ticket térmico 80 mm'], ['a4', 'Folio A4 (mismo diseño que la factura)']] },
+      { name: 'ticket_format', type: 'select', label: 'Formato de impresión de los tickets', options: [['ticket', 'Impresora térmica de tickets'], ['a4', 'Folio A4 (mismo diseño que la factura)']] },
+      { name: 'paper_width', type: 'select', label: 'Ancho del papel térmico', hint: 'Lo indica la etiqueta de la impresora', options: [['58', '58 mm'], ['80', '80 mm']] },
+      { name: 'qr_url', type: 'text', label: 'Enlace para el código QR del ticket', hint: 'Ej.: tu enlace de reseñas de Google o https://wa.me/34600000000. Vacío = sin QR', wide: true },
+      { name: 'qr_caption', type: 'text', label: 'Texto bajo el código QR' },
       { name: 'warranties', type: 'pairs', label: 'Tipos de garantía', wide: true, hint: 'Nombre y texto que se imprime. Asigna uno a cada producto en Ajustes → Productos; se puede cambiar en cada línea del ticket o factura.' },
       { name: 'footer', type: 'textarea', label: 'Pie de página', hint: 'Ej.: datos registrales, política de devoluciones…', wide: true },
       { name: 'show_vat', type: 'bool', label: 'Desglosar IVA por defecto', hint: 'Valor inicial del interruptor "Desglosar IVA" al hacer un ticket o factura' },
@@ -86,13 +89,15 @@ const SCHEMAS = {
   },
   reparaciones: {
     key: 'repairs',
-    intro: 'El resguardo de reparación se imprime en la impresora de tickets de 80 mm con estos textos.',
+    intro: 'El resguardo de reparación se imprime en la impresora de tickets con estos textos.',
     fields: [
       { name: 'prefix', type: 'text', label: 'Serie de reparaciones (prefijo)', hint: 'Ej.: "R-" → R-1, R-2…' },
       { name: 'next_number', type: 'number', label: 'Próximo número' },
       { name: 'faults', type: 'list', label: 'Reparaciones habituales', hint: 'Una por línea. Son las casillas que se marcan al recibir un móvil.', wide: true, rows: 8 },
       { name: 'disclaimer', type: 'textarea', label: 'Aviso destacado', wide: true },
       { name: 'conditions', type: 'longtext', label: 'Condiciones del servicio', hint: 'Un párrafo por línea', wide: true },
+      { name: 'reminder_days', type: 'number', label: 'Avisar de reparaciones sin recoger tras (días)' },
+      { name: 'ready_message', type: 'textarea', label: 'Mensaje de WhatsApp "ya está listo"', hint: 'Puedes usar {nombre}, {terminal}, {numero}, {importe} y {tienda}', wide: true },
     ],
   },
   modulos: {
@@ -101,6 +106,7 @@ const SCHEMAS = {
     fields: [
       { name: 'invoices', type: 'bool', label: 'Tickets y facturas' },
       { name: 'repairs', type: 'bool', label: 'Reparaciones' },
+      { name: 'stock', type: 'bool', label: 'Stock de móviles' },
       { name: 'payment_methods', type: 'bool', label: 'Formas de pago' },
       { name: 'files', type: 'bool', label: 'Archivos de la tienda', hint: 'Solo visible para administradores' },
     ],
@@ -176,7 +182,7 @@ function fieldHtml(field, value) {
       return `
         <label class="${css}">${title}
           <select name="${name}">
-            ${options.map(([optionValue, optionLabel]) => `<option value="${optionValue}" ${optionValue === value ? 'selected' : ''}>${esc(optionLabel)}</option>`).join('')}
+            ${options.map(([optionValue, optionLabel]) => `<option value="${optionValue}" ${optionValue === String(value) ? 'selected' : ''}>${esc(optionLabel)}</option>`).join('')}
           </select>
         </label>`;
     case 'pairs':

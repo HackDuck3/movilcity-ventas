@@ -3,10 +3,15 @@
 const { all, get, run, tx } = require('../db');
 const { getSetting, setSetting } = require('../settings');
 const { route, fail } = require('../http');
-const { cents, euros, localDate, isDate, str } = require('../utils');
+const { cents, euros, localDate, addDays, isDate, str } = require('../utils');
+const { recordSale } = require('./movements');
 
 const REPAIR_SELECT = 'SELECT r.*, u.name AS user_name FROM repairs r LEFT JOIN users u ON u.id = r.user_id';
 const PATTERN_FORMAT = /^[1-9](-[1-9]){0,8}$/;
+
+// A repair is "forgotten" when it is still pending after the number of days set in settings.
+const FORGOTTEN = "r.status = 'pending' AND r.voided = 0 AND r.date <= ?";
+const forgottenBefore = () => addDays(localDate(), -(Number(getSetting('repairs').reminder_days) || 15));
 
 function requireAccess(user) {
   if (!getSetting('modules').repairs) fail(403, 'El módulo de reparaciones está desactivado');
@@ -65,12 +70,22 @@ route('GET', '/api/repairs', 'user', ({ user, query }) => {
     conditions.push('r.status = ? AND r.voided = 0');
     values.push(query.status);
   }
+  if (query.status === 'forgotten') {
+    conditions.push(FORGOTTEN);
+    values.push(forgottenBefore());
+  }
   if (query.q) {
     const like = `%${query.q}%`;
     conditions.push('(r.number LIKE ? OR r.customer_name LIKE ? OR r.customer_phone LIKE ? OR r.brand LIKE ? OR r.model LIKE ? OR r.imei LIKE ?)');
     values.push(like, like, like, like, like, like);
   }
   return all(`${REPAIR_SELECT} WHERE ${conditions.join(' AND ')} ORDER BY r.id DESC LIMIT 300`, ...values).map(toResponse);
+});
+
+route('GET', '/api/repairs/summary', 'user', ({ user }) => {
+  requireAccess(user);
+  const count = (condition, ...values) => get(`SELECT COUNT(*) AS n FROM repairs r WHERE ${condition}`, ...values).n;
+  return { pending: count("r.status = 'pending' AND r.voided = 0"), forgotten: count(FORGOTTEN, forgottenBefore()) };
 });
 
 route('GET', '/api/repairs/:id', 'user', ({ user, params }) => {
@@ -109,8 +124,21 @@ route('POST', '/api/repairs/:id/status', 'user', ({ user, params, body }) => {
   const repair = findRepair(params.id);
   if (!['pending', 'collected'].includes(body.status)) fail(400, 'Estado no válido');
   const collectedAt = body.status === 'collected' ? "datetime('now','localtime')" : 'NULL';
-  run(`UPDATE repairs SET status = ?, collected_at = ${collectedAt} WHERE id = ?`, body.status, repair.id);
-  return { ok: true };
+  return tx(() => {
+    run(`UPDATE repairs SET status = ?, collected_at = ${collectedAt} WHERE id = ?`, body.status, repair.id);
+    // On collection the charge can go straight into the cash register, once per repair.
+    if (body.status !== 'collected' || !body.register) return { ok: true };
+    if (repair.movement_id) fail(400, 'Esta reparación ya se cobró en caja');
+    const movementId = recordSale({
+      category_id: body.register.category_id,
+      amount: body.register.amount,
+      profit: body.register.profit,
+      payment_method: body.register.payment_method,
+      description: `Reparación ${repair.number} · ${[repair.brand, repair.model].filter(Boolean).join(' ')}`,
+    }, user);
+    run('UPDATE repairs SET amount = ?, movement_id = ? WHERE id = ?', cents(body.register.amount), movementId, repair.id);
+    return { ok: true, movement_id: movementId };
+  });
 });
 
 route('POST', '/api/repairs/:id/void', 'admin', ({ params }) => {

@@ -119,6 +119,7 @@ export async function cashRegisterView(root, params) {
         <button class="btn btn-sm" data-today>Hoy</button>
       </div>
     </div>
+    <div data-repairs-notice></div>
     <div class="kpis" data-kpis></div>
     <div class="big-actions">
       <button class="big-btn sale" data-open-form="sale">
@@ -205,6 +206,18 @@ export async function cashRegisterView(root, params) {
     }
   }
 
+  // Reminds whoever opens the register that some customers have not come back for their phone.
+  async function renderForgottenRepairsNotice() {
+    if (!state.settings.modules.repairs || !can('worker_create_repairs')) return;
+    const summary = await tryApi('/repairs/summary');
+    if (!summary || !summary.forgotten) return;
+    find('[data-repairs-notice]').innerHTML = `
+      <div class="notice warn" style="margin-bottom:14px">
+        ${icon('warn')} <b>${summary.forgotten}</b> reparación(es) llevan más de ${esc(state.settings.repairs.reminder_days)} días sin recoger.
+        <a href="#/reparaciones">Ver reparaciones</a>
+      </div>`;
+  }
+
   // V = sale (venta), G = expense (gasto). Ignored while typing or with a modal open.
   function onShortcut(event) {
     if (!document.body.contains(root)) {
@@ -228,5 +241,6 @@ export async function cashRegisterView(root, params) {
   document.addEventListener('keydown', onShortcut);
 
   await load();
+  renderForgottenRepairsNotice();
   if (['sale', 'expense'].includes(params.get('nuevo'))) openForm(params.get('nuevo'));
 }

@@ -176,6 +176,49 @@ test('repair receipts are numbered, editable and tracked until collected', async
   assert.equal((await admin('GET', '/api/repairs?q=Phone')).data.length, 1);
 });
 
+test('collecting a repair can charge it in the cash register once', async () => {
+  const category = (await admin('GET', '/api/categories')).data.find(c => c.name === 'Reparacion');
+  const repair = await admin('POST', '/api/repairs', { model: 'Phone', customer_phone: '600', notes: 'Screen', amount: 50 });
+  assert.equal((await admin('GET', '/api/repairs/summary')).data.pending, 1);
+
+  const before = (await admin('GET', '/api/day')).data.totals;
+  const register = { category_id: category.id, amount: 60, profit: 40, payment_method: 'Efectivo' };
+  const collected = await admin('POST', `/api/repairs/${repair.data.id}/status`, { status: 'collected', register });
+  assert.ok(collected.data.movement_id);
+  const after = (await admin('GET', '/api/day')).data.totals;
+  assert.deepEqual([after.sales - before.sales, after.profit - before.profit], [60, 40]);
+  assert.equal((await admin('GET', `/api/repairs/${repair.data.id}`)).data.amount, 60);
+
+  await admin('POST', `/api/repairs/${repair.data.id}/status`, { status: 'pending' });
+  assert.equal((await admin('POST', `/api/repairs/${repair.data.id}/status`, { status: 'collected', register })).status, 400);
+});
+
+test('old pending repairs are listed as forgotten', async () => {
+  const old = await admin('POST', '/api/repairs', { model: 'Old phone', customer_phone: '600', notes: 'Battery', date: '2020-01-01' });
+  const forgotten = (await admin('GET', '/api/repairs?status=forgotten')).data;
+  assert.deepEqual(forgotten.map(r => r.id), [old.data.id]);
+  assert.equal((await admin('GET', '/api/repairs/summary')).data.forgotten, 1);
+  await admin('POST', `/api/repairs/${old.data.id}/status`, { status: 'collected' });
+});
+
+test('selling a phone from stock records the sale with its profit', async () => {
+  const category = (await admin('GET', '/api/categories')).data.find(c => c.name === 'Movil');
+  assert.equal((await admin('POST', '/api/admin/stock', { model: 'No cost' })).status, 400);
+  const device = await admin('POST', '/api/admin/stock', { brand: 'Brand', model: 'A16', imei: '3500', condition: 'used', cost: 100, price: 150 });
+  assert.equal((await admin('GET', '/api/stock')).data[0].cost, 100);
+
+  const before = (await admin('GET', '/api/day')).data.totals;
+  const sold = await admin('POST', `/api/stock/${device.data.id}/sell`, { price: 140, category_id: category.id, payment_method: 'Tarjeta' });
+  assert.match(sold.data.description, /A16 IMEI 3500/);
+  const after = (await admin('GET', '/api/day')).data.totals;
+  assert.deepEqual([after.sales - before.sales, after.profit - before.profit], [140, 40]);
+
+  assert.equal((await admin('GET', '/api/stock')).data.length, 0);
+  assert.equal((await admin('GET', '/api/stock?sold=1')).data.length, 1);
+  assert.equal((await admin('POST', `/api/stock/${device.data.id}/sell`, { price: 140, category_id: category.id })).status, 400);
+  assert.equal((await admin('DELETE', `/api/admin/stock/${device.data.id}`)).status, 400);
+});
+
 test('settings are validated and saved', async () => {
   const saved = await admin('PUT', '/api/admin/settings/invoice', {
     vat_rate: 10, color_title: 'not-a-colour',
@@ -206,7 +249,7 @@ test('workers are limited by permissions', async () => {
 
 test('statistics, CSV export and import', async () => {
   const stats = (await admin('GET', '/api/admin/stats')).data;
-  assert.equal(stats.totals.sales, 37);
+  assert.equal(stats.totals.sales, 237);
   assert.equal((await admin('GET', '/api/admin/year')).data.months.length, 12);
   assert.ok((await admin('GET', '/api/admin/movements')).data.length >= 3);
 

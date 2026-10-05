@@ -106,7 +106,10 @@ const DEFAULT_SETTINGS = {
     color_shop: '#6c63e6',
     color_title: '#283593',
     color_accent: '#e91e63',
-    ticket_format: 'ticket', // 'ticket' (80 mm) | 'a4'
+    ticket_format: 'ticket', // 'ticket' (thermal printer) | 'a4'
+    paper_width: 58,         // thermal paper in mm: 58 or 80
+    qr_url: '',              // printed as a QR code at the foot of tickets when set
+    qr_caption: 'Escanea y déjanos tu opinión',
   },
   repairs: {
     prefix: 'R-',
@@ -114,10 +117,14 @@ const DEFAULT_SETTINGS = {
     faults: REPAIR_FAULTS,
     disclaimer: 'No nos hacemos responsables de cualquier otro fallo que tenga el móvil, solo de nuestra reparación.',
     conditions: REPAIR_CONDITIONS,
+    reminder_days: 15, // a pending repair older than this is listed as forgotten
+    // Placeholders: {nombre} {terminal} {numero} {importe} {tienda}
+    ready_message: 'Hola {nombre}, tu {terminal} ya está listo para recoger en {tienda}. Resguardo n.º {numero}.',
   },
   modules: {
     invoices: true,
     repairs: true,
+    stock: true,
     payment_methods: true,
     files: true,
   },

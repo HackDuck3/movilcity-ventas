@@ -1,5 +1,6 @@
-// Printable repair receipt for the 80 mm thermal printer.
+// Printable repair receipt for the thermal printer.
 import { esc, money, fmtDate, fmtTime } from './core.js';
+import { thermalClass } from './invoice.js';
 
 const PATTERN_DOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -23,7 +24,7 @@ export function repairReceipt(repair, settings) {
   const work = [...repair.faults, repair.notes].filter(Boolean);
   const conditions = config.conditions.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
 
-  return `<div class="ticket-doc repair-receipt">
+  return `<div class="${thermalClass(settings)} repair-receipt">
     ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
     <div class="c"><h2>${esc(shop.name)}</h2>${shopLines}</div>
     <hr>

@@ -94,7 +94,7 @@ Son dos secciones separadas, cada una con su **propia serie de numeración**, co
 | Para | El cliente de mostrador | Quien necesita deducirse el IVA (empresas, autónomos) |
 | Datos del cliente | Opcionales | **Obligatorios**: nombre, NIF y dirección (la app no deja guardarla sin ellos) |
 | Numeración | Serie `T-1`, `T-2`… | Serie propia (continúa tu numeración anterior) |
-| Formato | Ticket 80 mm (o A4, a elegir) | A4 con el diseño de tu plantilla |
+| Formato | Ticket térmico de 58 u 80 mm (o A4, a elegir) | A4 con el diseño de tu plantilla |
 | Límite | Hasta 400 € (3.000 € en venta al por menor); la app avisa | Sin límite |
 
 - Desde la **Caja**, cada venta tiene dos iconos: **hacer ticket** o **hacer factura**. También puedes pulsar *Guardar y hacer ticket / factura* al registrarla.
@@ -146,7 +146,16 @@ npm test         # comprueba que la API sigue funcionando después de un cambio
 Sección **Reparaciones**: sustituye al talonario de resguardos. Al recibir un móvil se apuntan cliente, terminal (marca, modelo, IMEI, código o patrón de desbloqueo), las averías marcadas y el importe, y se imprime el resguardo en la impresora de tickets de 80 mm con las condiciones del servicio y los recuadros de firma.
 - Cada reparación queda **pendiente** hasta que se marca como **recogida**; el buscador encuentra por nombre, teléfono, modelo o IMEI.
 - Desde una reparación, **Hacer ticket** abre el ticket con el concepto, el importe y la garantía de reparación ya puestos.
-- Los textos (averías habituales, aviso y condiciones) se cambian en *Ajustes → Reparaciones*.
+- **Cobro en caja**: al marcarla como recogida se pide importe, beneficio y forma de pago, y la venta queda apuntada en la caja.
+- **Avisar por WhatsApp**: abre WhatsApp con el mensaje "ya está listo" escrito. Tú pulsas enviar.
+- **Olvidadas**: las que llevan más días de los indicados sin recoger aparecen avisadas en Caja y en Reparaciones.
+- Los textos (averías habituales, aviso, condiciones, mensaje de WhatsApp y días de aviso) se cambian en *Ajustes → Reparaciones*.
+
+### Stock de móviles
+Sección **Stock**: el administrador da de alta cada móvil con marca, modelo, IMEI, estado (nuevo o segunda mano) y **coste**. Al pulsar **Vender** solo se pone el precio: la venta entra en caja con el beneficio calculado y el IMEI en la descripción. *Vender y hacer ticket* abre el ticket con el IMEI y la garantía que corresponde al estado. Los trabajadores solo ven el coste si tienen permiso para ver el beneficio.
+
+### Código QR e impresora
+En *Ajustes → Tickets y facturas* puedes poner un enlace (reseñas de Google, WhatsApp…) que se imprime como **código QR** al pie de cada ticket. La instalación de la impresora térmica en Windows está explicada en [docs/IMPRESORA.md](docs/IMPRESORA.md).
 
 ---
 

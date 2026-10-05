@@ -175,4 +175,12 @@ route('POST', '/api/admin/movements/:id/restore', 'admin', ({ params }) => {
   return { ok: true };
 });
 
-module.exports = { MOVEMENT_SELECT, validateMovement };
+// Records a sale on behalf of another feature (repairs, stock) and returns its id.
+function recordSale(sale, user) {
+  const m = validateMovement({ ...sale, type: 'sale' }, user);
+  return run(`INSERT INTO movements (type, date, category_id, description, amount, profit, payment_method, user_id)
+              VALUES (?,?,?,?,?,?,?,?)`,
+    'sale', m.date, m.category_id, m.description, m.amount, m.profit, m.payment_method, user.id).id;
+}
+
+module.exports = { MOVEMENT_SELECT, validateMovement, recordSale };

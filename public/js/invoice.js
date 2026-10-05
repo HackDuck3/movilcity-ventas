@@ -1,5 +1,21 @@
-// Printable documents: A4 invoice and 80 mm thermal ticket.
-import { esc, money, fmtDate, fmtTime } from './core.js';
+// Printable documents: A4 invoice and thermal ticket (58 or 80 mm paper).
+import { state, esc, money, fmtDate, fmtTime } from './core.js';
+import { qrSvg } from './qr.js';
+
+const paperWidth = (settings) => (Number(settings.invoice.paper_width) === 80 ? 80 : 58);
+
+// Opening tag shared by everything printed on the thermal printer.
+export const thermalClass = (settings) => `ticket-doc paper-${paperWidth(settings)}`;
+
+// Optional QR code (shop review page, WhatsApp...) set in Settings.
+function qrBlock(config) {
+  if (!config.qr_url) return '';
+  try {
+    return `<div class="c qr-block">${qrSvg(config.qr_url)}${config.qr_caption ? `<div>${esc(config.qr_caption)}</div>` : ''}</div>`;
+  } catch {
+    return ''; // text too long for a QR code
+  }
+}
 
 const lines = (parts) => parts.filter(Boolean).map(esc).join('<br>');
 
@@ -125,7 +141,7 @@ export function ticket80(inv, settings) {
   const warranties = warrantyGroups(inv, cfg).map(g =>
     `<div class="small">${g.items.length ? `<b>${esc(g.items.join(', '))}:</b> ` : ''}${esc(g.text)}</div>`).join('');
 
-  return `<div class="ticket-doc">
+  return `<div class="${thermalClass(settings)}">
     ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
     <div class="c"><h2>${esc(shop.name)}</h2>${shopLines(shop)}</div>
     <hr>
@@ -141,6 +157,7 @@ export function ticket80(inv, settings) {
     ${inv.notes ? `<div class="c">${esc(inv.notes)}</div>` : ''}
     ${cfg.footer ? `<div class="c">${esc(cfg.footer)}</div>` : ''}
     <div class="c thanks">¡Gracias por su compra!</div>
+    ${qrBlock(cfg)}
     ${inv.voided ? '<div class="c big">*** ANULADO ***</div>' : ''}
   </div>`;
 }
@@ -154,7 +171,7 @@ export function printDocument(html, { format = 'a4', filename = 'documento' } = 
     root.style.display = 'block';
     const heightMm = Math.ceil(root.firstElementChild.getBoundingClientRect().height * 25.4 / 96) + 6;
     root.style.display = '';
-    pageCss = `@page { size: 80mm ${heightMm}mm; margin: 0; }`;
+    pageCss = `@page { size: ${paperWidth(state.settings)}mm ${heightMm}mm; margin: 0; }`;
   }
   const style = document.createElement('style');
   style.textContent = pageCss;

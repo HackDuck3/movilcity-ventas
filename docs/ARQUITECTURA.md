@@ -27,6 +27,7 @@ src/
     movements.js          Caja del día, ventas y gastos
     invoices.js           Tickets y facturas
     repairs.js            Resguardos de reparación
+    stock.js              Stock de móviles
     stats.js              Cifras del panel del dueño
     settings.js           Guardar ajustes (con validación)
     users.js              Usuarios
@@ -38,8 +39,9 @@ public/
   js/
     app.js                Arranque, login, menú y navegación
     core.js               Cliente de la API, formato de dinero/fechas, iconos, modales, avisos
-    invoice.js            Plantillas imprimibles: factura A4 y ticket de 80 mm
-    repair-receipt.js     Plantilla imprimible del resguardo de reparación (80 mm)
+    invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
+    repair-receipt.js     Plantilla imprimible del resguardo de reparación
+    qr.js                 Generador de códigos QR (sin librerías)
     movement-form.js      Formulario de venta/gasto
     charts.js             Gráficos SVG
     views/                Una pantalla por archivo
@@ -47,6 +49,7 @@ public/
       dashboard.js        Panel
       invoices.js         Tickets y facturas (listado, detalle y editor)
       repairs.js          Reparaciones (listado, detalle y editor)
+      stock.js            Stock de móviles
       movements.js        Movimientos
       files.js            Archivos
       settings.js         Ajustes
@@ -95,6 +98,7 @@ El tercer argumento es el acceso: `'public'` (sin sesión), `'user'` (cualquier 
 | `movements` | Una fila por venta o gasto |
 | `invoices` | Tickets (`kind = 'ticket'`) y facturas (`kind = 'factura'`). Las líneas van en `items` como JSON |
 | `repairs` | Resguardos de reparación: cliente, terminal, averías, importe y estado (`pending` / `collected`) |
+| `devices` | Móviles en stock: coste, precio previsto y, al venderse, la venta (`movement_id`) |
 | `files` | Datos de los archivos subidos; el contenido está en `data/files/` |
 
 El esquema completo, comentado, está al principio de `src/db.js`.
