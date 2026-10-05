@@ -28,7 +28,7 @@ Necesitas: una cuenta de GitHub y `git` instalado.
 
 ### 1. Crea el repositorio en GitHub
 1. En github.com → **New repository**.
-2. Nombre: **`movilcity-ventas`** (exactamente así; si usas otro, cámbialo también en `atik-movilcity/umbrel-app.yml`).
+2. Nombre: **`movilcity`** (exactamente así; si usas otro, cámbialo también en `atik-movilcity/umbrel-app.yml`).
 3. Visibilidad: **Public**. Umbrel tiene que poder leerlo sin contraseña.
    - Tranquilo: en GitHub solo va el **código**. Tus ventas, facturas, archivos y contraseñas se quedan en la Pi (`.gitignore` impide subir la carpeta `data/`).
 4. No marques "Add README". Pulsa **Create repository**.

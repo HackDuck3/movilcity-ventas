@@ -1,5 +1,5 @@
 {
-  "name": "movilcity-ventas",
+  "name": "movilcity",
   "version": "1.2.0",
   "description": "Control de ventas, gastos y facturas para tienda de móviles. Sin dependencias: solo Node.js >= 22.13",
   "main": "server.js",

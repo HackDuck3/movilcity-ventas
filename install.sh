@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Instalador para Raspberry Pi (Raspberry Pi OS 64-bit) o cualquier Debian/Ubuntu.
-# Uso:  cd movilcity-ventas && bash install.sh
+# Uso:  cd movilcity && bash install.sh
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
