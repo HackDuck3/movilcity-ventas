@@ -5,6 +5,7 @@ const { route, fail } = require('../http');
 const { str, isColor } = require('../utils');
 
 const MAX_LOGO_LENGTH = 1_500_000;
+const LONG_TEXT_FIELDS = ['conditions'];
 const isColorField = (field) => field.startsWith('color') || field === 'primary' || field === 'accent';
 
 // Coerces an incoming value to the type of its default. Returns undefined to keep the current value.
@@ -22,7 +23,7 @@ function sanitize(field, value, defaultValue) {
     return isImage ? value.slice(0, MAX_LOGO_LENGTH) : undefined;
   }
   if (isColorField(field)) return isColor(value) ? value : undefined;
-  return str(value, 300);
+  return str(value, LONG_TEXT_FIELDS.includes(field) ? 5000 : 300);
 }
 
 route('GET', '/api/admin/settings', 'admin', () => allSettings());

@@ -1,138 +1,252 @@
 // Shop documents (admin only): contracts, supplier invoices, taxes, insurance...
-import { api, state, esc, icon, toast, modal, confirmDialog, debounce, fmtDate } from '../core.js';
+import { api, state, esc, icon, toast, modal, confirmDialog, debounce, fmtDate, on, tryApi } from '../core.js';
 
-const fmtSize = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1).replace('.', ',')} MB`;
-const iconFor = (mime) => mime.startsWith('image/') ? 'image' : mime === 'application/pdf' ? 'invoice' : 'file';
-const canPreview = (mime) => /^(application\/pdf|image\/(png|jpe?g|gif|webp)|text\/plain)$/.test(mime);
+const DEFAULT_FOLDER = 'General';
+const KB = 1024;
+const MB = KB * 1024;
+// Must match SAFE_INLINE_TYPES in src/routes/files.js.
+const PREVIEWABLE_TYPES = /^(application\/pdf|image\/(png|jpe?g|gif|webp)|text\/plain)$/;
+
+function formatSize(bytes) {
+  if (bytes < KB) return `${bytes} B`;
+  if (bytes < MB) return `${(bytes / KB).toFixed(0)} KB`;
+  return `${(bytes / MB).toFixed(1).replace('.', ',')} MB`;
+}
+
+function iconFor(mime) {
+  if (mime.startsWith('image/')) return 'image';
+  return mime === 'application/pdf' ? 'invoice' : 'file';
+}
+
+function fileRow(file) {
+  const downloadUrl = `/api/admin/files/${file.id}/download`;
+  const previewLink = PREVIEWABLE_TYPES.test(file.mime)
+    ? `<a class="btn btn-ghost btn-icon" href="${downloadUrl}?inline=1" target="_blank" rel="noopener" title="Ver">${icon('eye')}</a>`
+    : '';
+  return `
+    <tr>
+      <td>
+        <div class="row" style="gap:8px;flex-wrap:nowrap">
+          <span class="file-ic">${icon(iconFor(file.mime))}</span>
+          <div style="min-width:0">
+            <b class="file-name" title="${esc(file.name)}">${esc(file.name)}</b>
+            ${file.note ? `<div class="desc">${esc(file.note)}</div>` : ''}
+          </div>
+        </div>
+      </td>
+      <td class="muted">${esc(file.folder)}</td>
+      <td class="r num muted">${formatSize(file.size)}</td>
+      <td class="num muted">${fmtDate(file.created_at.slice(0, 10))}</td>
+      <td class="muted">${esc(file.uploaded_by || '')}</td>
+      <td><div class="row-actions">
+        ${previewLink}
+        <a class="btn btn-ghost btn-icon" href="${downloadUrl}" title="Descargar">${icon('download')}</a>
+        <button class="btn btn-ghost btn-icon" data-edit="${file.id}" title="Renombrar / mover">${icon('edit')}</button>
+        <button class="btn btn-ghost btn-icon btn-danger" data-delete="${file.id}" title="Borrar">${icon('trash')}</button>
+      </div></td>
+    </tr>`;
+}
+
+function filesTable(files, isFolderSelected) {
+  if (!files.length) {
+    const message = isFolderSelected
+      ? 'Esta carpeta está vacía'
+      : 'Todavía no hay archivos. Sube contratos, facturas de proveedores, seguros…';
+    return `<div class="empty">${message}</div>`;
+  }
+  return `
+    <table class="t">
+      <thead><tr><th>Nombre</th><th>Carpeta</th><th class="r">Tamaño</th><th>Fecha</th><th>Subido por</th><th></th></tr></thead>
+      <tbody>${files.map(fileRow).join('')}</tbody>
+    </table>`;
+}
+
+// Sends one file as the raw request body (XMLHttpRequest because fetch cannot report upload progress).
+// Resolves to an error message, or to null when the upload worked.
+function uploadFile(file, folder, onProgress) {
+  return new Promise((resolve) => {
+    const request = new XMLHttpRequest();
+    request.open('POST', '/api/admin/files');
+    request.setRequestHeader('X-Requested-With', 'app');
+    request.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
+    request.setRequestHeader('X-Folder', encodeURIComponent(folder));
+    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) return resolve(null);
+      let message = '';
+      try { message = JSON.parse(request.responseText).error || ''; } catch { /* not JSON */ }
+      resolve(message || 'error al subir');
+    };
+    request.onerror = () => resolve('error de conexión');
+    request.send(file);
+  });
+}
 
 export async function filesView(root, params) {
-  let folder = params.get('carpeta') || '';
-  const suggested = state.settings.files.folders || [];
+  const suggestedFolders = state.settings.files.folders || [];
+  let selectedFolder = params.get('carpeta') || '';
+  let listing = { files: [], folders: [], total: { n: 0, size: 0 } };
 
   root.innerHTML = `
-    <div class="page-head"><div><h1>Archivos de la tienda</h1><div class="sub">Solo los administradores pueden ver esta sección</div></div>
+    <div class="page-head">
+      <div><h1>Archivos de la tienda</h1><div class="sub">Solo los administradores pueden ver esta sección</div></div>
       <span class="spacer"></span>
-      <label class="btn btn-primary" style="cursor:pointer">${icon('upload')} Subir archivos<input type="file" multiple data-input hidden></label>
+      <label class="btn btn-primary" style="cursor:pointer">
+        ${icon('upload')} Subir archivos<input type="file" multiple data-file-input hidden>
+      </label>
     </div>
     <div class="files-layout">
       <aside class="card card-pad files-folders" data-folders></aside>
       <div style="min-width:0">
-        <div class="dropzone" data-drop>
+        <div class="dropzone" data-dropzone>
           <div class="row" style="gap:10px">
-            <input type="search" data-q placeholder="Buscar por nombre o nota…" style="flex:1;min-width:160px">
-            <label class="row" style="gap:6px"><span class="muted" style="font-size:13px">Subir a</span>
-              <input type="text" data-target list="folder-list" style="width:200px" placeholder="Carpeta"></label>
+            <input type="search" data-search placeholder="Buscar por nombre o nota…" style="flex:1;min-width:160px">
+            <label class="row" style="gap:6px">
+              <span class="muted" style="font-size:13px">Subir a</span>
+              <input type="text" data-upload-folder list="folder-list" style="width:200px" placeholder="Carpeta">
+            </label>
             <datalist id="folder-list"></datalist>
           </div>
-          <div class="faint" style="font-size:12.5px;margin-top:8px">Arrastra aquí PDFs, fotos o documentos para subirlos (máx. ${esc(state.settings.files.max_mb)} MB por archivo).</div>
+          <div class="faint" style="font-size:12.5px;margin-top:8px">
+            Arrastra aquí PDFs, fotos o documentos para subirlos (máx. ${esc(state.settings.files.max_mb)} MB por archivo).
+          </div>
           <div data-progress></div>
         </div>
         <div class="card" style="margin-top:14px"><div class="table-wrap" data-list><div class="empty">Cargando…</div></div></div>
       </div>
     </div>`;
-  const $ = (s) => root.querySelector(s);
-  const target = $('[data-target]');
-  target.value = folder || suggested[0] || 'General';
 
-  let data;
+  const find = (selector) => root.querySelector(selector);
+  const uploadFolderInput = find('[data-upload-folder]');
+  uploadFolderInput.value = selectedFolder || suggestedFolders[0] || DEFAULT_FOLDER;
+  const uploadFolder = () => uploadFolderInput.value.trim() || DEFAULT_FOLDER;
+
   async function load() {
-    const q = $('[data-q]').value.trim();
-    const qs = new URLSearchParams(); if (folder) qs.set('folder', folder); if (q) qs.set('q', q);
-    try { data = await api('/admin/files?' + qs); } catch (e) { toast(e.message, 'err'); return; }
-    const known = new Map(data.folders.map(f => [f.folder, f]));
-    const names = [...new Set([...suggested, ...known.keys()])];
-    $('#folder-list').innerHTML = names.map(n => `<option value="${esc(n)}">`).join('');
-    $('[data-folders]').innerHTML = `
-      <a href="#" data-folder="" class="${!folder ? 'on' : ''}">${icon('folder')}<span>Todos</span><small>${data.total.n}</small></a>
-      ${names.map(n => `<a href="#" data-folder="${esc(n)}" class="${folder === n ? 'on' : ''}">${icon('folder')}<span>${esc(n)}</span><small>${known.get(n)?.n || 0}</small></a>`).join('')}
-      <div class="faint" style="font-size:12px;margin-top:12px;padding:0 8px">Espacio usado: <b>${fmtSize(data.total.size)}</b></div>`;
-    $('[data-list]').innerHTML = data.files.length ? `<table class="t"><thead><tr><th>Nombre</th><th>Carpeta</th><th class="r">Tamaño</th><th>Fecha</th><th>Subido por</th><th></th></tr></thead>
-      <tbody>${data.files.map(f => `<tr>
-        <td><div class="row" style="gap:8px;flex-wrap:nowrap"><span class="file-ic">${icon(iconFor(f.mime))}</span>
-          <div style="min-width:0"><b class="file-name" title="${esc(f.name)}">${esc(f.name)}</b>${f.note ? `<div class="desc">${esc(f.note)}</div>` : ''}</div></div></td>
-        <td class="muted">${esc(f.folder)}</td><td class="r num muted">${fmtSize(f.size)}</td>
-        <td class="num muted">${fmtDate(f.created_at.slice(0, 10))}</td><td class="muted">${esc(f.uploaded_by || '')}</td>
-        <td><div class="row-actions">
-          ${canPreview(f.mime) ? `<a class="btn btn-ghost btn-icon" href="/api/admin/files/${f.id}/download?inline=1" target="_blank" rel="noopener" title="Ver">${icon('eye')}</a>` : ''}
-          <a class="btn btn-ghost btn-icon" href="/api/admin/files/${f.id}/download" title="Descargar">${icon('download')}</a>
-          <button class="btn btn-ghost btn-icon" data-edit="${f.id}" title="Renombrar / mover">${icon('edit')}</button>
-          <button class="btn btn-ghost btn-icon btn-danger" data-del="${f.id}" title="Borrar">${icon('trash')}</button>
-        </div></td></tr>`).join('')}</tbody></table>`
-      : `<div class="empty">${folder ? 'Esta carpeta está vacía' : 'Todavía no hay archivos. Sube contratos, facturas de proveedores, seguros…'}</div>`;
+    const query = new URLSearchParams();
+    if (selectedFolder) query.set('folder', selectedFolder);
+    const search = find('[data-search]').value.trim();
+    if (search) query.set('q', search);
+
+    const loaded = await tryApi(`/admin/files?${query}`);
+    if (!loaded) return;
+    listing = loaded;
+    renderFolders();
+    find('[data-list]').innerHTML = filesTable(listing.files, !!selectedFolder);
   }
 
-  // ---- upload with progress bar
-  function upload(file) {
-    return new Promise((resolve) => {
-      const row = document.createElement('div');
-      row.className = 'upload-row';
-      row.innerHTML = `<span class="file-name">${esc(file.name)}</span><span class="bar"><i></i></span><span class="pct faint">0%</span>`;
-      $('[data-progress]').appendChild(row);
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/admin/files');
-      xhr.setRequestHeader('X-Requested-With', 'app');
-      xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
-      xhr.setRequestHeader('X-Folder', encodeURIComponent(target.value.trim() || 'General'));
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      xhr.upload.onprogress = (e) => {
-        if (!e.lengthComputable) return;
-        const p = Math.round((e.loaded / e.total) * 100);
-        row.querySelector('i').style.width = p + '%'; row.querySelector('.pct').textContent = p + '%';
-      };
-      xhr.onload = () => {
-        let msg = ''; try { msg = JSON.parse(xhr.responseText).error || ''; } catch { /* sin json */ }
-        if (xhr.status >= 200 && xhr.status < 300) { row.remove(); resolve(true); }
-        else { row.querySelector('.pct').textContent = msg || 'Error'; row.classList.add('err'); setTimeout(() => row.remove(), 6000); toast(`${file.name}: ${msg || 'error al subir'}`, 'err'); resolve(false); }
-      };
-      xhr.onerror = () => { row.querySelector('.pct').textContent = 'Error de conexión'; row.classList.add('err'); resolve(false); };
-      xhr.send(file);
-    });
+  // Suggested folders are always listed, even while empty.
+  function renderFolders() {
+    const fileCount = new Map(listing.folders.map(folder => [folder.folder, folder.n]));
+    const names = [...new Set([...suggestedFolders, ...fileCount.keys()])];
+    const link = (name, label, count) => `
+      <a href="#" data-folder="${esc(name)}" class="${selectedFolder === name ? 'on' : ''}">
+        ${icon('folder')}<span>${esc(label)}</span><small>${count}</small>
+      </a>`;
+    find('#folder-list').innerHTML = names.map(name => `<option value="${esc(name)}">`).join('');
+    find('[data-folders]').innerHTML = `
+      ${link('', 'Todos', listing.total.n)}
+      ${names.map(name => link(name, name, fileCount.get(name) || 0)).join('')}
+      <div class="faint" style="font-size:12px;margin-top:12px;padding:0 8px">Espacio usado: <b>${formatSize(listing.total.size)}</b></div>`;
   }
-  async function uploadAll(files) {
-    const list = [...files]; if (!list.length) return;
-    let ok = 0;
-    for (const f of list) if (await upload(f)) ok++;
-    if (ok) toast(`${ok} archivo(s) subido(s) a "${target.value.trim() || 'General'}"`, 'ok');
+
+  async function uploadWithProgressRow(file) {
+    const row = document.createElement('div');
+    row.className = 'upload-row';
+    row.innerHTML = `<span class="file-name">${esc(file.name)}</span><span class="bar"><i></i></span><span class="pct faint">0%</span>`;
+    find('[data-progress]').appendChild(row);
+    const percentLabel = row.querySelector('.pct');
+
+    const errorMessage = await uploadFile(file, uploadFolder(), (percent) => {
+      row.querySelector('i').style.width = `${percent}%`;
+      percentLabel.textContent = `${percent}%`;
+    });
+    if (!errorMessage) {
+      row.remove();
+      return true;
+    }
+    row.classList.add('err');
+    percentLabel.textContent = errorMessage;
+    setTimeout(() => row.remove(), 6000);
+    toast(`${file.name}: ${errorMessage}`, 'err');
+    return false;
+  }
+
+  async function uploadAll(fileList) {
+    const files = [...fileList];
+    if (!files.length) return;
+    let uploaded = 0;
+    for (const file of files) {
+      if (await uploadWithProgressRow(file)) uploaded++;
+    }
+    if (uploaded) toast(`${uploaded} archivo(s) subido(s) a "${uploadFolder()}"`, 'ok');
     load();
   }
-  $('[data-input]').addEventListener('change', (e) => { uploadAll(e.target.files); e.target.value = ''; });
-  const drop = $('[data-drop]');
-  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
-  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); uploadAll(e.dataTransfer.files); });
 
-  // ---- folders, search, edit, delete
-  $('[data-folders]').addEventListener('click', (e) => {
-    const a = e.target.closest('[data-folder]'); if (!a) return; e.preventDefault();
-    folder = a.dataset.folder; if (folder) target.value = folder; load();
+  function editFile(id) {
+    const file = listing.files.find(candidate => candidate.id === id);
+    modal({
+      title: 'Editar archivo',
+      body: `
+        <form data-edit-form style="display:flex;flex-direction:column;gap:12px">
+          <label class="field">Nombre<input type="text" name="fileName" value="${esc(file.name)}"></label>
+          <label class="field">Carpeta<input type="text" name="folder" list="folder-list" value="${esc(file.folder)}"></label>
+          <label class="field">Nota <span class="hint">ej.: vence el 31/12, renovar seguro…</span>
+            <textarea name="note" rows="2">${esc(file.note)}</textarea>
+          </label>
+        </form>`,
+      foot: `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" data-ok>Guardar</button>`,
+      onMount: (dialog, close) => {
+        dialog.querySelector('[data-ok]').onclick = async () => {
+          const { fileName, folder, note } = dialog.querySelector('[data-edit-form]').elements;
+          const body = { name: fileName.value, folder: folder.value, note: note.value };
+          try {
+            await api(`/admin/files/${file.id}`, { method: 'PUT', body });
+            close();
+            toast('Guardado', 'ok');
+            load();
+          } catch (error) {
+            toast(error.message, 'err');
+          }
+        };
+      },
+    });
+  }
+
+  async function deleteFile(id) {
+    const file = listing.files.find(candidate => candidate.id === id);
+    const confirmed = await confirmDialog(`¿Borrar "${file.name}" definitivamente? No se puede deshacer.`, { okText: 'Borrar', danger: true });
+    if (!confirmed) return;
+    if (await tryApi(`/admin/files/${file.id}`, { method: 'DELETE' })) toast('Archivo borrado');
+    load();
+  }
+
+  const dropzone = find('[data-dropzone]');
+  dropzone.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    dropzone.classList.add('over');
   });
-  $('[data-q]').addEventListener('input', debounce(load, 300));
-  $('[data-list]').addEventListener('click', async (e) => {
-    const ed = e.target.closest('[data-edit]'), del = e.target.closest('[data-del]');
-    if (ed) {
-      const f = data.files.find(x => x.id === Number(ed.dataset.edit));
-      modal({
-        title: 'Editar archivo',
-        body: `<form data-ef style="display:flex;flex-direction:column;gap:12px">
-          <label class="field">Nombre<input type="text" name="fname" value="${esc(f.name)}"></label>
-          <label class="field">Carpeta<input type="text" name="folder" list="folder-list" value="${esc(f.folder)}"></label>
-          <label class="field">Nota <span class="hint">ej.: vence el 31/12, renovar seguro…</span><textarea name="note" rows="2">${esc(f.note)}</textarea></label></form>`,
-        foot: `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" data-ok>Guardar</button>`,
-        onMount: (el, close) => {
-          el.querySelector('[data-ok]').onclick = async () => {
-            const fm = el.querySelector('[data-ef]').elements;
-            try { await api(`/admin/files/${f.id}`, { method: 'PUT', body: { name: fm.namedItem('fname').value, folder: fm.namedItem('folder').value, note: fm.namedItem('note').value } }); close(); toast('Guardado', 'ok'); load(); }
-            catch (err) { toast(err.message, 'err'); }
-          };
-        },
-      });
-    }
-    if (del) {
-      const f = data.files.find(x => x.id === Number(del.dataset.del));
-      if (!(await confirmDialog(`¿Borrar "${f.name}" definitivamente? No se puede deshacer.`, { okText: 'Borrar', danger: true }))) return;
-      try { await api(`/admin/files/${f.id}`, { method: 'DELETE' }); toast('Archivo borrado'); load(); } catch (err) { toast(err.message, 'err'); }
-    }
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('over'));
+  dropzone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    dropzone.classList.remove('over');
+    uploadAll(event.dataTransfer.files);
   });
+  find('[data-file-input]').addEventListener('change', (event) => {
+    uploadAll(event.target.files);
+    event.target.value = '';
+  });
+  find('[data-search]').addEventListener('input', debounce(load, 300));
+  on(root, 'click', '[data-folder]', (link, event) => {
+    event.preventDefault();
+    selectedFolder = link.dataset.folder;
+    if (selectedFolder) uploadFolderInput.value = selectedFolder;
+    load();
+  });
+  on(root, 'click', '[data-edit]', (button) => editFile(Number(button.dataset.edit)));
+  on(root, 'click', '[data-delete]', (button) => deleteFile(Number(button.dataset.delete)));
 
   await load();
 }

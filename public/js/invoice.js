@@ -63,7 +63,7 @@ function totalsBlock(inv, cfg) {
     ${inv.discount ? row('Subtotal', money(inv.subtotal)) + row('Descuento', `−${money(inv.discount)}`) : ''}
     ${vat ? row('Base imponible', money(vat.base)) + row(`IVA (${vat.rate}%)`, money(vat.vat)) : ''}
     <div class="sum-total"><span>Total</span><span>${money(inv.total)}</span></div>
-    ${vat ? '' : '<div class="sum-note">IVA incluido</div>'}
+    ${vat || inv.kind === 'ticket' ? '' : '<div class="sum-note">IVA incluido</div>'}
   </div>`;
 }
 
@@ -135,8 +135,7 @@ export function ticket80(inv, settings) {
     ${inv.discount ? `<div class="tl"><span>Subtotal</span><span>${money(inv.subtotal)}</span></div>
                       <div class="tl"><span>Descuento</span><span>-${money(inv.discount)}</span></div>` : ''}
     <div class="tl big"><span>TOTAL</span><span>${money(inv.total)}</span></div>
-    ${vat ? `<div class="tl"><span>Base ${money(vat.base)}</span><span>IVA ${vat.rate}% ${money(vat.vat)}</span></div>`
-          : '<div class="c">IVA incluido</div>'}
+    ${vat ? `<div class="tl"><span>Base ${money(vat.base)}</span><span>IVA ${vat.rate}% ${money(vat.vat)}</span></div>` : ''}
     <hr>
     ${warranties}
     ${inv.notes ? `<div class="c">${esc(inv.notes)}</div>` : ''}

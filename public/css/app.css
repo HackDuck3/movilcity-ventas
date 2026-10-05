@@ -405,3 +405,19 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .sheet-card a.active { color: var(--primary); }
 @media (min-width: 821px) { .mobile-sheet { display: none !important; } }
 .notice svg { width: 16px; height: 16px; vertical-align: -3px; }
+
+/* ------------------------------------------------------------------ repairs */
+.pattern-grid { display: grid; grid-template-columns: repeat(3, 26px); gap: 4px; margin: 4px 0; }
+.pattern-grid span { height: 26px; display: grid; place-items: center; border: 1px solid #999; border-radius: 50%; font-weight: 700; color: #999; }
+.pattern-grid .used { border-color: #000; color: #000; }
+.repair-receipt .conditions { font-size: 9.5px; line-height: 1.3; margin-top: 6px; }
+.repair-receipt .conditions p { margin: 3px 0; }
+.repair-receipt .signature { border: 1px solid #000; height: 22mm; margin-top: 6px; padding: 2px 4px; font-size: 10px; }
+.pattern-pad { display: grid; grid-template-columns: repeat(3, 44px); gap: 8px; }
+.pattern-pad button { height: 44px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface); color: var(--text-3); font-weight: 700; cursor: pointer; }
+.pattern-pad button.used { border-color: var(--primary); background: var(--primary); color: #fff; }
+.fault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 14px; }
+.fault-grid label { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.fault-grid input { width: 18px; height: 18px; accent-color: var(--primary); flex: none; }
+.status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #fef3c7; color: #78350f; }
+.status-badge.done { background: #dcfce7; color: #14532d; }

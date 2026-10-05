@@ -101,7 +101,7 @@ Son dos secciones separadas, cada una con su **propia serie de numeración**, co
 - **Convertir en factura**: si un cliente con ticket vuelve pidiendo factura, abre el ticket y pulsa *Convertir en factura*. La factura indica que "sustituye a la factura simplificada nº T-X" y la venta no se duplica en caja.
 - **Tus datos fiscales** (Ajustes → Tienda: nombre y apellidos del titular, NIF y dirección) aparecen automáticamente en todos los PDF. Si faltan, la app te avisa.
 - **Garantía por tipo de producto**: en *Ajustes → Tickets y facturas* defines los tipos de garantía (producto nuevo, segunda mano, reparación, software…) y en *Ajustes → Productos* eliges cuál tiene cada producto. Al escribir una línea se propone sola y puedes cambiarla; el texto se imprime en el documento.
-- **Desglosar IVA**: interruptor en cada ticket o factura. Activado muestra base imponible e IVA; desactivado muestra solo el total con "IVA incluido". El precio es el mismo en los dos casos.
+- **Desglosar IVA**: interruptor en cada ticket o factura. Activado muestra base imponible e IVA; desactivado (por defecto) muestra solo el total. El precio es el mismo en los dos casos.
 - **PDF**: botón *Imprimir / Guardar PDF* y en "Destino" elige **Guardar como PDF**.
 - No se borran: se **anulan** (quedan marcados y la numeración no se reutiliza).
 
@@ -141,6 +141,12 @@ npm run demo     # app con datos de ejemplo → http://localhost:3001
 npm test         # comprueba que la API sigue funcionando después de un cambio
 ```
 - Tras cambiar código en la Pi: `sudo systemctl restart movilcity` (los cambios en `public/` basta con recargar el navegador).
+
+### Reparaciones
+Sección **Reparaciones**: sustituye al talonario de resguardos. Al recibir un móvil se apuntan cliente, terminal (marca, modelo, IMEI, código o patrón de desbloqueo), las averías marcadas y el importe, y se imprime el resguardo en la impresora de tickets de 80 mm con las condiciones del servicio y los recuadros de firma.
+- Cada reparación queda **pendiente** hasta que se marca como **recogida**; el buscador encuentra por nombre, teléfono, modelo o IMEI.
+- Desde una reparación, **Hacer ticket** abre el ticket con el concepto, el importe y la garantía de reparación ya puestos.
+- Los textos (averías habituales, aviso y condiciones) se cambian en *Ajustes → Reparaciones*.
 
 ---
 

@@ -1,172 +1,256 @@
 // Sale / expense form, used in the cash register and when editing from Movements.
-import { api, state, esc, icon, toast, parseMoney, moneyInput, money, can, isAdmin, today } from './core.js';
+import { api, state, esc, icon, toast, parseMoney, moneyInput, money, can, isAdmin, today, on } from './core.js';
+
+const TEXT = {
+  sale: {
+    newTitle: 'Nueva venta', editTitle: 'Editar venta', save: 'Guardar venta', saved: 'Venta guardada',
+    amount: 'Precio de venta', search: 'Buscar producto… (escribe y pulsa Enter)',
+    descriptionHint: 'opcional: modelo, IMEI, cliente…', choose: 'Elige un producto', missing: 'Elige el producto vendido',
+  },
+  expense: {
+    newTitle: 'Nuevo gasto', editTitle: 'Editar gasto', save: 'Guardar gasto', saved: 'Gasto guardado',
+    amount: 'Importe del gasto', search: 'Buscar motivo de gasto…',
+    descriptionHint: 'ej.: 3 iPhone 13 al proveedor X', choose: 'Elige un motivo', missing: 'Elige el motivo del gasto',
+  },
+};
 
 /**
- * opts: { type: 'sale'|'expense', movement?: {...}, allowDate?: bool, date?: iso,
- *         onSaved(result), onCancel(), modalMode?: bool }
+ * options: {
+ *   type: 'sale' | 'expense',
+ *   movement,     existing movement when editing
+ *   allowDate,    show the date field (admins)
+ *   date,         initial date for a new movement
+ *   modalMode,    the form lives inside a modal: no close button, no reset after saving
+ *   onSaved({ id, documentKind, body, category }),
+ *   onCancel(),
+ * }
  */
-export function mountMovementForm(container, opts) {
-  const { type, movement } = opts;
+export function mountMovementForm(container, options) {
+  const { type, movement, modalMode } = options;
   const isSale = type === 'sale';
-  const cfg = state.settings.sales;
-  const usePM = state.settings.modules.payment_methods && cfg.ask_payment_method;
-  const cats = state.categories.filter(c => c.kind === type && (c.active || (movement && c.id === movement.category_id)));
-  const profitMode = cfg.profit_input || 'both';
-  const showInvoiceBtn = isSale && !movement && state.settings.modules.invoices && can('worker_create_invoices');
-  let selected = movement ? movement.category_id : null;
-  let pm = movement ? movement.payment_method : (cfg.payment_methods[0] || '');
-  let lastEdited = 'profit';
+  const isEditing = !!movement;
+  const text = TEXT[type];
+  const salesConfig = state.settings.sales;
+  const asksPaymentMethod = state.settings.modules.payment_methods && salesConfig.ask_payment_method;
+  // 'both' shows cost and profit (each fills in the other), 'profit' or 'cost' shows only that one.
+  const profitInput = salesConfig.profit_input || 'both';
+  const showCost = isSale && profitInput !== 'profit';
+  const showProfit = isSale && profitInput !== 'cost';
+  const canMakeDocument = isSale && !isEditing && state.settings.modules.invoices && can('worker_create_invoices');
+  const categories = state.categories.filter(category =>
+    category.kind === type && (category.active || (isEditing && category.id === movement.category_id)));
+
+  let selectedCategoryId = isEditing ? movement.category_id : null;
+  let paymentMethod = isEditing ? movement.payment_method : salesConfig.payment_methods[0] || '';
+  let lastEditedField = 'profit';
+
+  const initial = {
+    amount: isEditing ? moneyInput(movement.amount) : '',
+    cost: isEditing && movement.profit !== undefined ? moneyInput(movement.amount - movement.profit) : '',
+    profit: isEditing && movement.profit !== undefined ? moneyInput(movement.profit) : '',
+    date: isEditing ? movement.date : options.date || today(),
+    description: isEditing ? movement.description : '',
+  };
+
+  const moneyField = (name, label, hint, value) => `
+    <label class="field">${label} (€)${hint ? ` <span class="hint">${hint}</span>` : ''}
+      <input class="money" name="${name}" inputmode="decimal" placeholder="0,00" value="${value}">
+    </label>`;
+
+  const paymentButtons = salesConfig.payment_methods.map(method =>
+    `<button type="button" data-method="${esc(method)}" class="${method === paymentMethod ? 'on' : ''}">${esc(method)}</button>`).join('');
 
   container.innerHTML = `
-  <div class="entry ${type}">
-    <div class="row" style="margin-bottom:10px">
-      <h3 style="margin:0">${movement ? (isSale ? 'Editar venta' : 'Editar gasto') : (isSale ? 'Nueva venta' : 'Nuevo gasto')}</h3>
-      <span class="spacer"></span>
-      ${opts.modalMode ? '' : `<button class="btn btn-ghost btn-icon" data-cancel title="Cerrar (Esc)">${icon('x')}</button>`}
-    </div>
-    <input type="search" data-search placeholder="${isSale ? 'Buscar producto… (escribe y pulsa Enter)' : 'Buscar motivo de gasto…'}" autocomplete="off" style="margin-bottom:10px">
-    <div class="cat-grid" data-cats></div>
-    <form data-form autocomplete="off" novalidate>
-      <div class="fields">
-        <label class="field">${isSale ? 'Precio de venta' : 'Importe del gasto'} (€)
-          <input class="money" name="amount" inputmode="decimal" placeholder="0,00" value="${movement ? moneyInput(movement.amount) : ''}">
-        </label>
-        ${isSale && profitMode !== 'profit' ? `<label class="field">Coste (€) <span class="hint">lo que te costó a ti</span>
-          <input class="money" name="cost" inputmode="decimal" placeholder="0,00" value="${movement && movement.profit !== undefined ? moneyInput(movement.amount - movement.profit) : ''}">
-        </label>` : ''}
-        ${isSale && profitMode !== 'cost' ? `<label class="field">Beneficio (€) <span class="hint">lo que ganas</span>
-          <input class="money" name="profit" inputmode="decimal" placeholder="0,00" value="${movement && movement.profit !== undefined ? moneyInput(movement.profit) : ''}">
-        </label>` : ''}
-        ${usePM ? `<label class="field ${isSale && profitMode === 'both' ? 'wide' : ''}">Forma de pago
-          <div class="seg" data-pm>${cfg.payment_methods.map(p => `<button type="button" data-v="${esc(p)}" class="${p === pm ? 'on' : ''}">${esc(p)}</button>`).join('')}</div>
-        </label>` : ''}
-        ${opts.allowDate ? `<label class="field">Fecha <input type="date" name="date" value="${esc(movement ? movement.date : (opts.date || today()))}"></label>` : ''}
-        <label class="field wide">Descripción <span class="hint">${isSale ? 'opcional: modelo, IMEI, cliente…' : 'ej.: 3 iPhone 13 al proveedor X'}</span>
-          <input type="text" name="description" maxlength="300" value="${esc(movement ? movement.description : '')}">
-        </label>
-      </div>
-      <div class="row" style="margin-top:14px">
-        <button class="btn btn-primary" type="submit" data-save>${movement ? 'Guardar cambios' : (isSale ? 'Guardar venta' : 'Guardar gasto')} <span class="faint" style="color:#fff;opacity:.7;font-weight:500">↵</span></button>
-        ${showInvoiceBtn ? `<button class="btn" type="button" data-save-doc="ticket">${icon('receipt')} Guardar y hacer ticket</button>
-                            <button class="btn" type="button" data-save-doc="factura">${icon('invoice')} Guardar y hacer factura</button>` : ''}
+    <div class="entry ${type}">
+      <div class="row" style="margin-bottom:10px">
+        <h3 style="margin:0">${isEditing ? text.editTitle : text.newTitle}</h3>
         <span class="spacer"></span>
-        <span class="muted" data-summary></span>
+        ${modalMode ? '' : `<button class="btn btn-ghost btn-icon" data-cancel title="Cerrar (Esc)">${icon('x')}</button>`}
       </div>
-    </form>
-  </div>`;
+      <input type="search" data-search placeholder="${text.search}" autocomplete="off" style="margin-bottom:10px">
+      <div class="cat-grid" data-categories></div>
+      <form data-form autocomplete="off" novalidate>
+        <div class="fields">
+          ${moneyField('amount', text.amount, '', initial.amount)}
+          ${showCost ? moneyField('cost', 'Coste', 'lo que te costó a ti', initial.cost) : ''}
+          ${showProfit ? moneyField('profit', 'Beneficio', 'lo que ganas', initial.profit) : ''}
+          ${asksPaymentMethod ? `
+            <label class="field ${showCost && showProfit ? 'wide' : ''}">Forma de pago
+              <div class="seg" data-payment-methods>${paymentButtons}</div>
+            </label>` : ''}
+          ${options.allowDate ? `<label class="field">Fecha <input type="date" name="date" value="${esc(initial.date)}"></label>` : ''}
+          <label class="field wide">Descripción <span class="hint">${text.descriptionHint}</span>
+            <input type="text" name="description" maxlength="300" value="${esc(initial.description)}">
+          </label>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn btn-primary" type="submit" data-save>
+            ${isEditing ? 'Guardar cambios' : text.save} <span style="opacity:.7;font-weight:500">↵</span>
+          </button>
+          ${canMakeDocument ? `
+            <button class="btn" type="button" data-save-and-make="ticket">${icon('receipt')} Guardar y hacer ticket</button>
+            <button class="btn" type="button" data-save-and-make="factura">${icon('invoice')} Guardar y hacer factura</button>` : ''}
+          <span class="spacer"></span>
+          <span class="muted" data-summary></span>
+        </div>
+      </form>
+    </div>`;
 
-  const $ = (s) => container.querySelector(s);
-  const form = $('[data-form]');
-  const search = $('[data-search]');
-  const f = (n) => form.elements.namedItem(n);
+  const form = container.querySelector('[data-form]');
+  const search = container.querySelector('[data-search]');
+  const categoryGrid = container.querySelector('[data-categories]');
+  const field = (name) => form.elements.namedItem(name);
+  const readMoney = (name) => (field(name) ? parseMoney(field(name).value) : NaN);
+  const selectedCategory = () => categories.find(category => category.id === selectedCategoryId);
 
-  function renderCats() {
-    const q = search.value.trim().toLowerCase();
-    const list = q ? cats.filter(c => c.name.toLowerCase().includes(q)) : cats;
-    $('[data-cats]').innerHTML = list.length ? list.map(c =>
-      `<button type="button" class="cat-btn ${c.id === selected ? 'on' : ''}" data-id="${c.id}" style="--c:${esc(c.color)}">${esc(c.name)}</button>`).join('')
-      : `<span class="faint">No hay coincidencias. ${isAdmin() ? 'Puedes crear la categoría en Ajustes.' : ''}</span>`;
-  }
-
-  function choose(id) {
-    selected = id;
-    const c = cats.find(x => x.id === id);
-    if (c && !movement) {
-      if (c.default_price != null && !f('amount').value) f('amount').value = moneyInput(c.default_price);
-      if (isSale && c.default_profit != null) {
-        if (f('profit') && !f('profit').value) f('profit').value = moneyInput(c.default_profit);
-        sync('profit');
-      }
+  function renderCategories() {
+    const query = search.value.trim().toLowerCase();
+    const matches = query ? categories.filter(category => category.name.toLowerCase().includes(query)) : categories;
+    if (!matches.length) {
+      categoryGrid.innerHTML = `<span class="faint">No hay coincidencias. ${isAdmin() ? 'Puedes crear la categoría en Ajustes.' : ''}</span>`;
+      return;
     }
-    renderCats(); updateSummary();
-    f('amount').focus(); f('amount').select();
+    categoryGrid.innerHTML = matches.map(category => `
+      <button type="button" class="cat-btn ${category.id === selectedCategoryId ? 'on' : ''}"
+              data-category="${category.id}" style="--c:${esc(category.color)}">${esc(category.name)}</button>`).join('');
   }
 
-  function sync(source) {
-    if (!isSale) return;
-    const price = parseMoney(f('amount').value);
-    const costEl = f('cost'), profitEl = f('profit');
-    if (source === 'cost' || source === 'profit') lastEdited = source;
-    if (!Number.isFinite(price)) return;
-    if (costEl && profitEl) {
-      if (lastEdited === 'cost' && source !== 'profit') {
-        const c = parseMoney(costEl.value); if (Number.isFinite(c)) profitEl.value = moneyInput(price - c);
-      } else {
-        const p = parseMoney(profitEl.value); if (Number.isFinite(p)) costEl.value = moneyInput(price - p);
-      }
+  function selectCategory(id) {
+    selectedCategoryId = id;
+    const category = selectedCategory();
+    if (category && !isEditing) fillSuggestedValues(category);
+    renderCategories();
+    renderSummary();
+    field('amount').focus();
+    field('amount').select();
+  }
+
+  function fillSuggestedValues(category) {
+    if (category.default_price != null && !field('amount').value) field('amount').value = moneyInput(category.default_price);
+    if (!isSale || category.default_profit == null) return;
+    if (field('profit') && !field('profit').value) field('profit').value = moneyInput(category.default_profit);
+    syncCostAndProfit('profit');
+  }
+
+  // With both fields visible, editing one recalculates the other from the price.
+  function syncCostAndProfit(editedField) {
+    if (editedField === 'cost' || editedField === 'profit') lastEditedField = editedField;
+    const price = readMoney('amount');
+    if (!showCost || !showProfit || !Number.isFinite(price)) return;
+    const [source, target] = lastEditedField === 'cost' ? ['cost', 'profit'] : ['profit', 'cost'];
+    const value = readMoney(source);
+    if (Number.isFinite(value)) field(target).value = moneyInput(price - value);
+  }
+
+  function currentProfit() {
+    if (showProfit) return readMoney('profit');
+    return readMoney('amount') - readMoney('cost');
+  }
+
+  function renderSummary() {
+    const summary = container.querySelector('[data-summary]');
+    const category = selectedCategory();
+    if (!category) {
+      summary.textContent = text.choose;
+      return;
     }
+    const price = readMoney('amount');
+    const profit = isSale ? currentProfit() : NaN;
+    const parts = [category.name];
+    if (Number.isFinite(price)) parts.push(money(price));
+    if (Number.isFinite(profit) && price > 0) parts.push(`margen ${Math.round((profit / price) * 100)}%`);
+    summary.textContent = parts.join(' · ');
   }
 
-  function getProfit() {
-    const price = parseMoney(f('amount').value);
-    if (f('profit')) return parseMoney(f('profit').value);
-    if (f('cost')) return price - parseMoney(f('cost').value);
-    return NaN;
-  }
-
-  function updateSummary() {
-    const c = cats.find(x => x.id === selected);
-    const price = parseMoney(f('amount').value);
-    const el = $('[data-summary]');
-    if (!c) { el.textContent = isSale ? 'Elige un producto' : 'Elige un motivo'; return; }
-    let txt = `${c.name}${Number.isFinite(price) ? ' · ' + money(price) : ''}`;
-    const p = getProfit();
-    if (isSale && Number.isFinite(p) && Number.isFinite(price) && price > 0) txt += ` · margen ${Math.round((p / price) * 100)}%`;
-    el.textContent = txt;
-  }
-
-  async function save(docKind = null) {
-    if (!selected) { toast(isSale ? 'Elige el producto vendido' : 'Elige el motivo del gasto', 'err'); search.focus(); return; }
-    const amount = parseMoney(f('amount').value);
-    if (!Number.isFinite(amount) || amount <= 0) { toast('Escribe un importe válido', 'err'); f('amount').focus(); return; }
+  // Returns the request body, or null after telling the user what is missing.
+  function readForm() {
+    if (!selectedCategoryId) {
+      toast(text.missing, 'err');
+      search.focus();
+      return null;
+    }
+    const amount = readMoney('amount');
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast('Escribe un importe válido', 'err');
+      field('amount').focus();
+      return null;
+    }
     const body = {
-      type, category_id: selected, amount, description: f('description').value, payment_method: usePM ? pm : '',
+      type, amount,
+      category_id: selectedCategoryId,
+      description: field('description').value,
+      payment_method: asksPaymentMethod ? paymentMethod : '',
     };
-    if (isSale) {
-      const p = getProfit();
-      if (!Number.isFinite(p)) { toast('Indica el beneficio o el coste', 'err'); (f('profit') || f('cost')).focus(); return; }
-      if (p < 0 && !confirm('El beneficio es negativo (vendes por debajo del coste). ¿Guardar igualmente?')) return;
-      body.profit = p;
+    if (field('date')) body.date = field('date').value;
+    if (!isSale) return body;
+
+    const profit = currentProfit();
+    if (!Number.isFinite(profit)) {
+      toast('Indica el beneficio o el coste', 'err');
+      (field('profit') || field('cost')).focus();
+      return null;
     }
-    if (f('date')) body.date = f('date').value;
-    const btn = $('[data-save]'); btn.disabled = true;
+    if (profit < 0 && !confirm('El beneficio es negativo (vendes por debajo del coste). ¿Guardar igualmente?')) return null;
+    return { ...body, profit };
+  }
+
+  function resetForNextEntry() {
+    selectedCategoryId = null;
+    form.reset();
+    search.value = '';
+    renderCategories();
+    renderSummary();
+    search.focus();
+  }
+
+  // documentKind: 'ticket' | 'factura' when the user also wants a document for this sale.
+  async function save(documentKind = null) {
+    const body = readForm();
+    if (!body) return;
+    const saveButton = container.querySelector('[data-save]');
+    saveButton.disabled = true;
     try {
-      const r = movement
+      const result = isEditing
         ? await api(`/movements/${movement.id}`, { method: 'PUT', body })
         : await api('/movements', { method: 'POST', body });
-      const c = cats.find(x => x.id === selected);
-      toast(`${movement ? 'Guardado' : (isSale ? 'Venta guardada' : 'Gasto guardado')}: ${c.name} ${money(amount)}`, 'ok');
-      const savedId = movement ? movement.id : r.id;
-      if (!movement && !opts.modalMode) {
-        // ready for the next sale
-        selected = null; form.reset(); search.value = ''; renderCats(); updateSummary(); search.focus();
-      }
-      opts.onSaved && opts.onSaved({ id: savedId, docKind, body, category: c });
-    } catch (e) { toast(e.message, 'err'); }
-    finally { btn.disabled = false; }
+      const category = selectedCategory();
+      toast(`${isEditing ? 'Guardado' : text.saved}: ${category.name} ${money(body.amount)}`, 'ok');
+      if (!isEditing && !modalMode) resetForNextEntry();
+      options.onSaved?.({ id: isEditing ? movement.id : result.id, documentKind, body, category });
+    } catch (error) {
+      toast(error.message, 'err');
+    } finally {
+      saveButton.disabled = false;
+    }
   }
 
-  // events
-  search.addEventListener('input', renderCats);
-  search.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const first = container.querySelector('.cat-btn'); if (first) choose(Number(first.dataset.id));
-    } else if (e.key === 'Escape' && !opts.modalMode) opts.onCancel && opts.onCancel();
-  });
-  $('[data-cats]').addEventListener('click', (e) => { const b = e.target.closest('.cat-btn'); if (b) choose(Number(b.dataset.id)); });
-  form.addEventListener('input', (e) => { if (['amount', 'cost', 'profit'].includes(e.target.name)) sync(e.target.name); updateSummary(); });
-  form.addEventListener('submit', (e) => { e.preventDefault(); save(null); });
-  form.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !opts.modalMode) opts.onCancel && opts.onCancel(); });
-  const pmEl = $('[data-pm]');
-  if (pmEl) pmEl.addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    pm = b.dataset.v; pmEl.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-  });
-  container.querySelectorAll('[data-save-doc]').forEach(b => b.addEventListener('click', () => save(b.dataset.saveDoc)));
-  const cancel = $('[data-cancel]'); if (cancel) cancel.addEventListener('click', () => opts.onCancel && opts.onCancel());
+  const cancel = () => { if (!modalMode) options.onCancel?.(); };
 
-  renderCats(); updateSummary();
-  setTimeout(() => (movement ? f('amount') : search).focus(), 30);
-  return { save };
+  search.addEventListener('input', renderCategories);
+  search.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const firstMatch = categoryGrid.querySelector('.cat-btn');
+    if (firstMatch) selectCategory(Number(firstMatch.dataset.category));
+  });
+  container.addEventListener('keydown', (event) => { if (event.key === 'Escape') cancel(); });
+  on(container, 'click', '[data-cancel]', cancel);
+  on(container, 'click', '.cat-btn', (button) => selectCategory(Number(button.dataset.category)));
+  on(container, 'click', '[data-save-and-make]', (button) => save(button.dataset.saveAndMake));
+  on(container, 'click', '[data-method]', (button) => {
+    paymentMethod = button.dataset.method;
+    container.querySelectorAll('[data-method]').forEach(other => other.classList.toggle('on', other === button));
+  });
+  form.addEventListener('input', (event) => {
+    if (['amount', 'cost', 'profit'].includes(event.target.name)) syncCostAndProfit(event.target.name);
+    renderSummary();
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    save();
+  });
+
+  renderCategories();
+  renderSummary();
+  setTimeout(() => (isEditing ? field('amount') : search).focus(), 30);
 }

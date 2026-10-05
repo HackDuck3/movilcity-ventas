@@ -83,6 +83,8 @@ const P = {
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
   eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
   swap: '<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
   warn: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
 };
 export const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
@@ -146,12 +148,30 @@ export function applyAppearance(app) {
 // "Today" comes from the server, so a wrong clock on a phone does not matter.
 export const today = () => state.today || isoDate(new Date());
 
-export function formToObject(form) {
-  const out = {};
-  for (const el of form.elements) {
-    if (!el.name) continue;
-    if (el.type === 'checkbox') out[el.name] = el.checked;
-    else out[el.name] = el.value;
+// ---- DOM
+// Event delegation: calls handler(element, event) when an event inside `root` hits `selector`.
+export function on(root, type, selector, handler) {
+  root.addEventListener(type, (event) => {
+    const element = event.target.closest(selector);
+    if (element && root.contains(element)) handler(element, event);
+  });
+}
+
+// Redraws when the element changes size and stops by itself once the element leaves the page.
+export function redrawOnResize(element, draw) {
+  const observer = new ResizeObserver(() => {
+    if (document.body.contains(element)) draw();
+    else observer.disconnect();
+  });
+  observer.observe(element);
+}
+
+// Runs an API call and shows its error as a toast. Resolves to undefined when it fails.
+export async function tryApi(path, options) {
+  try {
+    return await api(path, options);
+  } catch (error) {
+    toast(error.message, 'err');
+    return undefined;
   }
-  return out;
 }

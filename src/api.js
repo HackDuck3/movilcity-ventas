@@ -5,6 +5,7 @@ require('./routes/session');
 require('./routes/categories');
 require('./routes/movements');
 require('./routes/invoices');
+require('./routes/repairs');
 require('./routes/stats');
 require('./routes/settings');
 require('./routes/users');

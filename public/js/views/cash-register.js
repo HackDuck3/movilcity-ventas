@@ -1,150 +1,232 @@
 // Daily cash register: the worker's main screen.
-import { api, state, esc, icon, money, chip, fmtTime, fmtDateLong, addDays, today, isAdmin, can, perms, toast, confirmDialog, modal } from '../core.js';
+import {
+  api, state, esc, icon, money, chip, fmtTime, fmtDateLong, addDays, today, isAdmin, can, perms,
+  toast, confirmDialog, modal, on, tryApi,
+} from '../core.js';
 import { mountMovementForm } from '../movement-form.js';
 
+// Link to the ticket/invoice editor with the sale already filled in.
+function documentEditorUrl(kind, saleId, categoryName, description, amount) {
+  const section = kind === 'ticket' ? 'tickets' : 'facturas';
+  const text = [categoryName, description].filter(Boolean).join(' ');
+  return `#/${section}/nueva?venta=${saleId}&desc=${encodeURIComponent(text)}&precio=${amount}`;
+}
+
+function kpiCard(label, value, color, footer = '') {
+  return `
+    <div class="kpi">
+      <div class="label"><span class="dot" style="background:${color}"></span>${esc(label)}</div>
+      <div class="value ${value < 0 ? 'neg' : ''}">${money(value)}</div>
+      ${footer ? `<div class="foot">${footer}</div>` : ''}
+    </div>`;
+}
+
+// The server only sends the totals this user is allowed to see.
+function kpisHtml(totals) {
+  const cards = [];
+  if (totals.sales !== undefined) {
+    cards.push(kpiCard('Vendido', totals.sales, 'var(--series-1)', `${totals.sales_count} ${totals.sales_count === 1 ? 'venta' : 'ventas'}`));
+  }
+  if (totals.profit !== undefined) {
+    const margin = totals.sales ? `margen ${Math.round((totals.profit / totals.sales) * 100)}%` : '';
+    cards.push(kpiCard('Beneficio', totals.profit, 'var(--series-2)', margin));
+  }
+  if (totals.expenses !== undefined) cards.push(kpiCard('Gastos', totals.expenses, 'var(--expense)'));
+  if (totals.balance !== undefined) cards.push(kpiCard('Balance de caja', totals.balance, 'var(--primary)', 'vendido − gastos'));
+  if (totals.by_payment && totals.by_payment.length > 1) {
+    const rows = totals.by_payment.map(payment => `
+      <div class="row" style="justify-content:space-between;margin-top:4px">
+        <span class="muted">${esc(payment.method)}</span><b class="num">${money(payment.amount)}</b>
+      </div>`).join('');
+    cards.push(`<div class="kpi"><div class="label">Por forma de pago</div>${rows}</div>`);
+  }
+  if (!cards.length) {
+    cards.push(`<div class="kpi"><div class="label">Ventas de hoy</div><div class="value">${totals.sales_count}</div></div>`);
+  }
+  return cards.join('');
+}
+
+function documentButtons(sale) {
+  if (sale.invoice_id) {
+    return `<a class="btn btn-ghost btn-icon" href="#/facturas/${sale.invoice_id}" title="Ver ticket / factura" style="color:var(--primary)">${icon('eye')}</a>`;
+  }
+  const url = (kind) => documentEditorUrl(kind, sale.id, sale.category, sale.description, sale.amount);
+  return `
+    <a class="btn btn-ghost btn-icon" href="${url('ticket')}" title="Hacer ticket" style="opacity:.6">${icon('receipt')}</a>
+    <a class="btn btn-ghost btn-icon" href="${url('factura')}" title="Hacer factura" style="opacity:.6">${icon('invoice')}</a>`;
+}
+
+function movementsTable(movements, isSale) {
+  if (!movements.length) {
+    return `<div class="empty">${isSale ? 'Todavía no hay ventas este día' : 'Sin gastos este día'}</div>`;
+  }
+  const showProfit = isSale && movements.some(movement => movement.profit !== undefined);
+  const showDocuments = isSale && state.settings.modules.invoices && can('worker_create_invoices');
+
+  const row = (movement) => `
+    <tr>
+      <td class="faint num">${fmtTime(movement.created_at)}</td>
+      <td>
+        ${chip(movement.category, movement.color)}
+        ${movement.description ? `<div class="desc" title="${esc(movement.description)}">${esc(movement.description)}</div>` : ''}
+      </td>
+      <td class="r num"><b>${money(movement.amount)}</b></td>
+      ${showProfit ? `<td class="r num">${money(movement.profit)}</td>` : ''}
+      <td class="muted">${esc(movement.payment_method || '')}</td>
+      ${isAdmin() ? `<td class="muted">${esc(movement.user || '')}</td>` : ''}
+      <td><div class="row-actions">
+        ${showDocuments ? documentButtons(movement) : ''}
+        ${movement.can_edit ? `
+          <button class="btn btn-ghost btn-icon" data-edit="${movement.id}" title="Editar">${icon('edit')}</button>
+          <button class="btn btn-ghost btn-icon btn-danger" data-delete="${movement.id}" title="Borrar">${icon('trash')}</button>` : ''}
+      </div></td>
+    </tr>`;
+
+  return `
+    <table class="t">
+      <thead><tr>
+        <th>Hora</th>
+        <th>${isSale ? 'Producto' : 'Motivo'}</th>
+        <th class="r">${isSale ? 'Precio' : 'Importe'}</th>
+        ${showProfit ? '<th class="r">Beneficio</th>' : ''}
+        <th>Pago</th>
+        ${isAdmin() ? '<th>Usuario</th>' : ''}
+        <th></th>
+      </tr></thead>
+      <tbody>${movements.map(row).join('')}</tbody>
+    </table>`;
+}
+
 export async function cashRegisterView(root, params) {
-  const t = today();
-  let date = params.get('fecha') || t;
-  const histDays = isAdmin() ? 99999 : Number(perms().worker_history_days) || 0;
-  const minDate = addDays(t, -histDays);
-  let openForm = params.get('nuevo') || null; // 'sale' | 'expense'
+  const todayDate = today();
+  // Admins can browse any day; workers only as far back as their permission allows.
+  const historyDays = isAdmin() ? null : Number(perms().worker_history_days) || 0;
+  const oldestDate = historyDays === null ? '' : addDays(todayDate, -historyDays);
+  const canAddExpenses = can('worker_add_expenses');
+
+  let date = params.get('fecha') || todayDate;
+  let openFormType = null; // 'sale' | 'expense' | null
+  let day = { sales: [], expenses: [] };
 
   root.innerHTML = `
     <div class="page-head">
       <div><h1>Caja</h1><div class="sub" data-date-label></div></div>
       <span class="spacer"></span>
-      <div class="row" data-date-nav>
-        <button class="btn btn-icon" data-prev title="Día anterior">${icon('left')}</button>
-        <input type="date" data-date style="width:auto" max="${t}" min="${histDays < 99999 ? minDate : ''}">
-        <button class="btn btn-icon" data-next title="Día siguiente">${icon('right')}</button>
+      <div class="row ${historyDays === 0 ? 'hidden' : ''}">
+        <button class="btn btn-icon" data-previous-day title="Día anterior">${icon('left')}</button>
+        <input type="date" data-date style="width:auto" max="${todayDate}" min="${oldestDate}">
+        <button class="btn btn-icon" data-next-day title="Día siguiente">${icon('right')}</button>
         <button class="btn btn-sm" data-today>Hoy</button>
       </div>
     </div>
     <div class="kpis" data-kpis></div>
     <div class="big-actions">
-      <button class="big-btn sale" data-open="sale">${icon('plus')}<span>Añadir venta<small>Producto, precio y beneficio</small></span></button>
-      <button class="big-btn expense" data-open="expense" ${can('worker_add_expenses') ? '' : 'disabled title="No tienes permiso para registrar gastos"'}>${icon('minus')}<span>Añadir gasto<small>Compras, proveedor, tienda…</small></span></button>
+      <button class="big-btn sale" data-open-form="sale">
+        ${icon('plus')}<span>Añadir venta<small>Producto, precio y beneficio</small></span>
+      </button>
+      <button class="big-btn expense" data-open-form="expense" ${canAddExpenses ? '' : 'disabled title="No tienes permiso para registrar gastos"'}>
+        ${icon('minus')}<span>Añadir gasto<small>Compras, proveedor, tienda…</small></span>
+      </button>
     </div>
     <div data-form-slot></div>
     <div class="day-cols">
-      <div class="card"><div class="card-head"><h3>Ventas</h3><span class="count" data-sales-count></span></div><div class="table-wrap" data-sales></div></div>
-      <div class="card"><div class="card-head"><h3>Gastos</h3><span class="count" data-exp-count></span></div><div class="table-wrap" data-expenses></div></div>
+      <div class="card">
+        <div class="card-head"><h3>Ventas</h3><span class="count" data-sales-count></span></div>
+        <div class="table-wrap" data-sales></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Gastos</h3><span class="count" data-expenses-count></span></div>
+        <div class="table-wrap" data-expenses></div>
+      </div>
     </div>`;
 
-  const $ = (s) => root.querySelector(s);
-  if (histDays === 0) $('[data-date-nav]').classList.add('hidden');
+  const find = (selector) => root.querySelector(selector);
 
-  function setOpen(type) {
-    openForm = type;
-    root.querySelectorAll('[data-open]').forEach(b => b.classList.toggle('active', b.dataset.open === type));
-    const slot = $('[data-form-slot]');
-    if (!type) { slot.innerHTML = ''; return; }
+  async function load() {
+    find('[data-date]').value = date;
+    find('[data-date-label]').textContent = fmtDateLong(date) + (date === todayDate ? ' · hoy' : '');
+    find('[data-next-day]').disabled = date >= todayDate;
+    find('[data-previous-day]').disabled = oldestDate !== '' && date <= oldestDate;
+
+    const loaded = await tryApi(`/day?date=${date}`);
+    if (!loaded) return;
+    day = loaded;
+    find('[data-kpis]').innerHTML = kpisHtml(day.totals);
+    find('[data-sales]').innerHTML = movementsTable(day.sales, true);
+    find('[data-expenses]').innerHTML = movementsTable(day.expenses, false);
+    find('[data-sales-count]').textContent = `(${day.sales.length})`;
+    find('[data-expenses-count]').textContent = `(${day.expenses.length})`;
+  }
+
+  function showDate(newDate) {
+    date = newDate;
+    load();
+  }
+
+  function openForm(type) {
+    openFormType = type;
+    root.querySelectorAll('[data-open-form]').forEach(button => button.classList.toggle('active', button.dataset.openForm === type));
+    const slot = find('[data-form-slot]');
+    if (!type) {
+      slot.innerHTML = '';
+      return;
+    }
     mountMovementForm(slot, {
-      type, allowDate: isAdmin(), date,
-      onCancel: () => setOpen(null),
-      onSaved: async ({ id, docKind, body, category }) => {
+      type, date,
+      allowDate: isAdmin(),
+      onCancel: () => openForm(null),
+      onSaved: async ({ id, documentKind, body, category }) => {
         await load();
-        if (docKind) {
-          location.hash = `#/${docKind === 'ticket' ? 'tickets' : 'facturas'}/nueva?venta=${id}&desc=${encodeURIComponent(category.name + (body.description ? ' ' + body.description : ''))}&precio=${body.amount}`;
-        }
+        if (documentKind) location.hash = documentEditorUrl(documentKind, id, category.name, body.description, body.amount);
       },
     });
   }
 
-  root.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => setOpen(openForm === b.dataset.open ? null : b.dataset.open)));
-
-  function kpi(label, value, color, foot = '') {
-    return `<div class="kpi"><div class="label"><span class="dot" style="background:${color}"></span>${esc(label)}</div>
-      <div class="value ${value < 0 ? 'neg' : ''}">${money(value)}</div>${foot ? `<div class="foot">${foot}</div>` : ''}</div>`;
+  function editMovement(id) {
+    const movement = [...day.sales, ...day.expenses].find(candidate => candidate.id === id);
+    const dialog = modal({ title: 'Editar', body: '<div data-slot></div>', wide: true });
+    mountMovementForm(dialog.el.querySelector('[data-slot]'), {
+      type: movement.type, movement,
+      allowDate: isAdmin(),
+      modalMode: true,
+      onSaved: async () => { dialog.close(); await load(); },
+    });
   }
 
-  function docButtons(m) {
-    if (m.invoice_id) return `<a class="btn btn-ghost btn-icon" href="#/facturas/${m.invoice_id}" title="Ver ticket / factura" style="color:var(--primary)">${icon('eye')}</a>`;
-    const q = `venta=${m.id}&desc=${encodeURIComponent(m.category + (m.description ? ' ' + m.description : ''))}&precio=${m.amount}`;
-    return `<a class="btn btn-ghost btn-icon" href="#/tickets/nueva?${q}" title="Hacer ticket" style="opacity:.6">${icon('receipt')}</a>
-            <a class="btn btn-ghost btn-icon" href="#/facturas/nueva?${q}" title="Hacer factura" style="opacity:.6">${icon('invoice')}</a>`;
-  }
-
-  function rowsHtml(list, isSale) {
-    if (!list.length) return `<div class="empty">${isSale ? 'Todavía no hay ventas este día' : 'Sin gastos este día'}</div>`;
-    const showProfit = isSale && list.some(m => m.profit !== undefined);
-    return `<table class="t"><thead><tr>
-        <th>Hora</th><th>${isSale ? 'Producto' : 'Motivo'}</th><th class="r">${isSale ? 'Precio' : 'Importe'}</th>
-        ${showProfit ? '<th class="r">Beneficio</th>' : ''}<th>Pago</th>${isAdmin() ? '<th>Usuario</th>' : ''}<th></th>
-      </tr></thead><tbody>${list.map(m => `
-        <tr>
-          <td class="faint num">${fmtTime(m.created_at)}</td>
-          <td>${chip(m.category, m.color)}${m.description ? `<div class="desc" title="${esc(m.description)}">${esc(m.description)}</div>` : ''}</td>
-          <td class="r num"><b>${money(m.amount)}</b></td>
-          ${showProfit ? `<td class="r num">${money(m.profit)}</td>` : ''}
-          <td class="muted">${esc(m.payment_method || '')}</td>
-          ${isAdmin() ? `<td class="muted">${esc(m.user || '')}</td>` : ''}
-          <td><div class="row-actions">
-            ${isSale && state.settings.modules.invoices && can('worker_create_invoices') ? docButtons(m) : ''}
-            ${m.can_edit ? `<button class="btn btn-ghost btn-icon" data-edit="${m.id}" title="Editar">${icon('edit')}</button>
-                            <button class="btn btn-ghost btn-icon btn-danger" data-del="${m.id}" title="Borrar">${icon('trash')}</button>` : ''}
-          </div></td>
-        </tr>`).join('')}</tbody></table>`;
-  }
-
-  let data;
-  async function load() {
-    $('[data-date]').value = date;
-    $('[data-date-label]').textContent = fmtDateLong(date) + (date === t ? ' · hoy' : '');
-    $('[data-next]').disabled = date >= t;
-    $('[data-prev]').disabled = date <= minDate;
-    try { data = await api(`/day?date=${date}`); }
-    catch (e) { toast(e.message, 'err'); return; }
-    const k = data.totals; let html = '';
-    if (k.sales !== undefined) html += kpi('Vendido', k.sales, 'var(--series-1)', `${k.sales_count} ${k.sales_count === 1 ? 'venta' : 'ventas'}`);
-    if (k.profit !== undefined) html += kpi('Beneficio', k.profit, 'var(--series-2)', k.sales ? `margen ${Math.round((k.profit / k.sales) * 100)}%` : '');
-    if (k.expenses !== undefined) html += kpi('Gastos', k.expenses, 'var(--expense)');
-    if (k.balance !== undefined) html += kpi('Balance de caja', k.balance, 'var(--primary)', 'vendido − gastos');
-    if (k.by_payment && k.by_payment.length > 1) {
-      html += `<div class="kpi"><div class="label">Por forma de pago</div>${k.by_payment.map(p =>
-        `<div class="row" style="justify-content:space-between;margin-top:4px"><span class="muted">${esc(p.method)}</span><b class="num">${money(p.amount)}</b></div>`).join('')}</div>`;
+  async function deleteMovement(id) {
+    const confirmed = await confirmDialog('¿Borrar este apunte? El administrador podrá ver que se ha borrado.', { okText: 'Borrar', danger: true });
+    if (!confirmed) return;
+    try {
+      await api(`/movements/${id}`, { method: 'DELETE' });
+      toast('Borrado');
+      load();
+    } catch (error) {
+      toast(error.message, 'err');
     }
-    if (!html) html = `<div class="kpi"><div class="label">Ventas de hoy</div><div class="value">${k.sales_count}</div></div>`;
-    $('[data-kpis]').innerHTML = html;
-    $('[data-sales]').innerHTML = rowsHtml(data.sales, true);
-    $('[data-expenses]').innerHTML = rowsHtml(data.expenses, false);
-    $('[data-sales-count]').textContent = `(${data.sales.length})`;
-    $('[data-exp-count]').textContent = `(${data.expenses.length})`;
   }
 
-  root.addEventListener('click', async (e) => {
-    const ed = e.target.closest('[data-edit]'), del = e.target.closest('[data-del]');
-    if (ed) {
-      const id = Number(ed.dataset.edit);
-      const mv = [...data.sales, ...data.expenses].find(m => m.id === id);
-      const m = modal({ title: 'Editar', body: '<div data-slot></div>', wide: true });
-      mountMovementForm(m.el.querySelector('[data-slot]'), {
-        type: mv.type, movement: mv, allowDate: isAdmin(), modalMode: true,
-        onSaved: async () => { m.close(); await load(); },
-      });
+  // V = sale (venta), G = expense (gasto). Ignored while typing or with a modal open.
+  function onShortcut(event) {
+    if (!document.body.contains(root)) {
+      document.removeEventListener('keydown', onShortcut);
+      return;
     }
-    if (del) {
-      const id = Number(del.dataset.del);
-      if (!(await confirmDialog('¿Borrar este apunte? El administrador podrá ver que se ha borrado.', { okText: 'Borrar', danger: true }))) return;
-      try { await api(`/movements/${id}`, { method: 'DELETE' }); toast('Borrado'); load(); }
-      catch (err) { toast(err.message, 'err'); }
-    }
-  });
+    const isTyping = event.target.matches('input, textarea, select');
+    if (isTyping || event.ctrlKey || event.metaKey || document.querySelector('.modal-back')) return;
+    const key = event.key.toLowerCase();
+    if (key === 'v') { event.preventDefault(); openForm('sale'); }
+    if (key === 'g' && canAddExpenses) { event.preventDefault(); openForm('expense'); }
+  }
 
-  $('[data-date]').addEventListener('change', (e) => { if (e.target.value) { date = e.target.value; load(); } });
-  $('[data-prev]').addEventListener('click', () => { date = addDays(date, -1); load(); });
-  $('[data-next]').addEventListener('click', () => { date = addDays(date, 1); load(); });
-  $('[data-today]').addEventListener('click', () => { date = t; load(); });
-
-  // keyboard shortcuts: V = sale (venta), G = expense (gasto)
-  const onKey = (e) => {
-    if (!document.body.contains(root)) return document.removeEventListener('keydown', onKey);
-    if (e.target.matches('input, textarea, select') || e.ctrlKey || e.metaKey || document.querySelector('.modal-back')) return;
-    if (e.key === 'v' || e.key === 'V') { e.preventDefault(); setOpen('sale'); }
-    if ((e.key === 'g' || e.key === 'G') && can('worker_add_expenses')) { e.preventDefault(); setOpen('expense'); }
-  };
-  document.addEventListener('keydown', onKey);
+  on(root, 'click', '[data-open-form]', (button) => openForm(openFormType === button.dataset.openForm ? null : button.dataset.openForm));
+  on(root, 'click', '[data-edit]', (button) => editMovement(Number(button.dataset.edit)));
+  on(root, 'click', '[data-delete]', (button) => deleteMovement(Number(button.dataset.delete)));
+  on(root, 'click', '[data-previous-day]', () => showDate(addDays(date, -1)));
+  on(root, 'click', '[data-next-day]', () => showDate(addDays(date, 1)));
+  on(root, 'click', '[data-today]', () => showDate(todayDate));
+  find('[data-date]').addEventListener('change', (event) => { if (event.target.value) showDate(event.target.value); });
+  document.addEventListener('keydown', onShortcut);
 
   await load();
-  if (openForm) setOpen(openForm);
+  if (['sale', 'expense'].includes(params.get('nuevo'))) openForm(params.get('nuevo'));
 }

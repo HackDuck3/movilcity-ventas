@@ -156,6 +156,26 @@ test('an invoice can register its sale in the daily register', async () => {
   assert.ok(day.sales.at(-1).invoice_id);
 });
 
+test('repair receipts are numbered, editable and tracked until collected', async () => {
+  assert.equal((await admin('POST', '/api/repairs', { model: 'Phone' })).status, 400);
+  const created = await admin('POST', '/api/repairs', {
+    brand: 'Brand', model: 'Phone 15', customer_name: 'Customer', customer_phone: '600000000',
+    unlock_code: '1234', pattern: '1-2-3-6', faults: ['Batería', 'Táctil / cristal'], notes: 'Leaves SIM', amount: '169',
+  });
+  assert.equal(created.data.number, 'R-1');
+  const saved = (await admin('GET', `/api/repairs/${created.data.id}`)).data;
+  assert.deepEqual([saved.amount, saved.status, saved.faults.length, saved.pattern], [169, 'pending', 2, '1-2-3-6']);
+
+  await admin('PUT', `/api/repairs/${created.data.id}`, { ...saved, amount: 150, pattern: 'not-a-pattern' });
+  await admin('POST', `/api/repairs/${created.data.id}/status`, { status: 'collected' });
+  const collected = (await admin('GET', `/api/repairs/${created.data.id}`)).data;
+  assert.deepEqual([collected.amount, collected.status, collected.pattern], [150, 'collected', '']);
+  assert.ok(collected.collected_at);
+
+  assert.equal((await admin('GET', '/api/repairs?status=pending')).data.length, 0);
+  assert.equal((await admin('GET', '/api/repairs?q=Phone')).data.length, 1);
+});
+
 test('settings are validated and saved', async () => {
   const saved = await admin('PUT', '/api/admin/settings/invoice', {
     vat_rate: 10, color_title: 'not-a-colour',

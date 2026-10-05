@@ -26,6 +26,7 @@ src/
     categories.js         Productos y motivos de gasto
     movements.js          Caja del día, ventas y gastos
     invoices.js           Tickets y facturas
+    repairs.js            Resguardos de reparación
     stats.js              Cifras del panel del dueño
     settings.js           Guardar ajustes (con validación)
     users.js              Usuarios
@@ -38,12 +39,14 @@ public/
     app.js                Arranque, login, menú y navegación
     core.js               Cliente de la API, formato de dinero/fechas, iconos, modales, avisos
     invoice.js            Plantillas imprimibles: factura A4 y ticket de 80 mm
+    repair-receipt.js     Plantilla imprimible del resguardo de reparación (80 mm)
     movement-form.js      Formulario de venta/gasto
     charts.js             Gráficos SVG
     views/                Una pantalla por archivo
       cash-register.js    Caja
       dashboard.js        Panel
       invoices.js         Tickets y facturas (listado, detalle y editor)
+      repairs.js          Reparaciones (listado, detalle y editor)
       movements.js        Movimientos
       files.js            Archivos
       settings.js         Ajustes
@@ -91,6 +94,7 @@ El tercer argumento es el acceso: `'public'` (sin sesión), `'user'` (cualquier 
 | `categories` | Productos (`kind = 'sale'`) y motivos de gasto (`kind = 'expense'`). Cada producto tiene su `warranty` por defecto |
 | `movements` | Una fila por venta o gasto |
 | `invoices` | Tickets (`kind = 'ticket'`) y facturas (`kind = 'factura'`). Las líneas van en `items` como JSON |
+| `repairs` | Resguardos de reparación: cliente, terminal, averías, importe y estado (`pending` / `collected`) |
 | `files` | Datos de los archivos subidos; el contenido está en `data/files/` |
 
 El esquema completo, comentado, está al principio de `src/db.js`.
@@ -100,13 +104,30 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 - Los tipos de garantía viven en el ajuste `invoice.warranties` (`[{ name, text }]`).
 - Cada producto guarda el nombre de su garantía por defecto. En el editor, al escribir una línea que empieza por el nombre de un producto se propone esa garantía.
 - Al guardar, el servidor copia el **texto** de la garantía dentro de cada línea (`warranty_text`). Así, cambiar un texto en Ajustes no altera documentos ya emitidos.
-- Cada documento guarda `show_vat`: si se imprime el desglose de IVA o solo "IVA incluido".
+- Cada documento guarda `show_vat`: si se imprime el desglose de IVA o solo el total.
+
+## Cómo está escrita una pantalla
+
+Todas las pantallas de `public/js/views/` siguen el mismo patrón:
+
+1. **Funciones pequeñas que devuelven HTML** (`movementsTable()`, `kpiCard()`…). Reciben datos y devuelven texto; no tocan la página.
+2. **Una función `render…` por pantalla**, que pinta el HTML, guarda el estado en variables locales (`let date`, `let movements`) y define las acciones (`load()`, `save()`, `deleteMovement()`…).
+3. **Los eventos al final**, con `on(root, 'click', '[data-edit]', …)`. Los elementos se localizan por atributos `data-…`, nunca por clases de estilo.
+
+Tres ayudas de `core.js` aparecen en todas partes:
+
+| Función | Para qué |
+|---|---|
+| `on(root, tipo, selector, fn)` | Escuchar un evento en cualquier elemento que cumpla el selector, aunque se pinte después |
+| `tryApi(ruta, opciones)` | Llamar a la API mostrando el error como aviso; devuelve `undefined` si falla |
+| `esc(texto)` | Escapar cualquier dato antes de meterlo en HTML. **Obligatorio** con todo lo que escribe un usuario |
 
 ## Dónde tocar para…
 
 | Quiero… | Archivo |
 |---|---|
 | Cambiar el diseño de la factura o del ticket | `public/js/invoice.js` y la sección *invoices* de `public/css/app.css` |
+| Cambiar el resguardo de reparación | Textos: *Ajustes → Reparaciones*. Diseño: `public/js/repair-receipt.js` y la sección *repairs* de `app.css` |
 | Añadir un ajuste | `DEFAULT_SETTINGS` en `src/defaults.js` y `SCHEMAS` en `public/js/views/settings.js` (el formulario se genera solo) |
 | Añadir una pantalla | Crear `public/js/views/mi-vista.js` y registrarla en `ROUTES` de `public/js/app.js` |
 | Añadir una ruta a la API | El archivo correspondiente de `src/routes/` (o uno nuevo, añadiéndolo en `src/api.js`) |
@@ -120,7 +141,7 @@ npm run demo     # app con datos de ejemplo en http://localhost:3001 (admin / ad
 npm test         # arranca el servidor con una base de datos temporal y recorre los flujos principales
 ```
 
-`npm test` cubre la API (login, permisos, caja, tickets y facturas, ajustes, CSV, archivos). **No cubre las pantallas**: después de tocar algo en `public/`, compruébalo a mano en la demo.
+`npm test` cubre la API (login, permisos, caja, tickets y facturas, reparaciones, ajustes, CSV, archivos). **No cubre las pantallas**: después de tocar algo en `public/`, compruébalo a mano en la demo.
 
 ## Publicar una versión
 

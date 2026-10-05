@@ -107,6 +107,32 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 CREATE INDEX IF NOT EXISTS idx_inv_kind ON invoices(kind, id);
 
+-- Repair receipts: the slip the customer keeps while the shop has their device.
+-- faults is a JSON array of names; pattern is the unlock pattern as dot numbers, e.g. '1-4-7-8'.
+CREATE TABLE IF NOT EXISTS repairs (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  number         TEXT NOT NULL,
+  date           TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','collected')),
+  collected_at   TEXT,
+  customer_name  TEXT NOT NULL DEFAULT '',
+  customer_nif   TEXT NOT NULL DEFAULT '',
+  customer_phone TEXT NOT NULL DEFAULT '',
+  brand          TEXT NOT NULL DEFAULT '',
+  model          TEXT NOT NULL DEFAULT '',
+  imei           TEXT NOT NULL DEFAULT '',
+  carrier        TEXT NOT NULL DEFAULT '',
+  unlock_code    TEXT NOT NULL DEFAULT '',
+  pattern        TEXT NOT NULL DEFAULT '',
+  faults         TEXT NOT NULL DEFAULT '[]',
+  notes          TEXT NOT NULL DEFAULT '',
+  condition      TEXT NOT NULL DEFAULT '',
+  amount         INTEGER,
+  user_id        INTEGER REFERENCES users(id),
+  created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  voided         INTEGER NOT NULL DEFAULT 0
+);
+
 -- Uploaded shop documents. The content lives on disk at FILES_DIR/<stored_name>.
 CREATE TABLE IF NOT EXISTS files (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,6 +178,23 @@ function migrate() {
     tx(() => all("SELECT id, name FROM categories WHERE kind = 'sale'").forEach(category =>
       run('UPDATE categories SET warranty = ? WHERE id = ?', defaultWarrantyFor(category.name), category.id)));
   }
+  once('vat_breakdown_off_by_default', () => {
+    const row = get("SELECT value FROM settings WHERE key = 'invoice'");
+    const config = row ? JSON.parse(row.value) : {};
+    // Documents issued before the per-document switch keep the look they were printed with.
+    run('UPDATE invoices SET show_vat = ? WHERE show_vat IS NULL', config.show_vat === false ? 0 : 1);
+    if (row) run("UPDATE settings SET value = ? WHERE key = 'invoice'", JSON.stringify({ ...config, show_vat: false }));
+  });
+}
+
+// Runs a data migration a single time per database, remembering it in the settings table.
+function once(name, change) {
+  const key = `migration:${name}`;
+  if (get('SELECT 1 AS found FROM settings WHERE key = ?', key)) return;
+  tx(() => {
+    change();
+    run('INSERT INTO settings (key, value) VALUES (?, ?)', key, JSON.stringify(new Date().toISOString()));
+  });
 }
 
 function seedCategories() {

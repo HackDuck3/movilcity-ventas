@@ -1,0 +1,264 @@
+// Repair receipts: the slip the customer keeps while the shop has their device.
+import {
+  api, state, esc, icon, money, fmtDate, toast, isAdmin, parseMoney, moneyInput, confirmDialog, debounce, on, tryApi,
+} from '../core.js';
+import { repairReceipt } from '../repair-receipt.js';
+import { printDocument } from '../invoice.js';
+
+const SECTION = '#/reparaciones';
+const FILTERS = [['pending', 'Pendientes'], ['collected', 'Recogidas'], ['', 'Todas']];
+const PATTERN_DOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+export function repairsView(root, params, sub) {
+  if (sub === 'nueva') return renderEditor(root, null);
+  if (sub && params.get('editar') === '1') return renderEditor(root, Number(sub));
+  if (sub) return renderDetail(root, Number(sub));
+  return renderList(root);
+}
+
+const deviceName = (repair) => [repair.brand, repair.model].filter(Boolean).join(' ');
+const workSummary = (repair) => [...repair.faults, repair.notes].filter(Boolean).join(', ');
+
+function statusBadge(repair) {
+  if (repair.voided) return '<span class="neg">Anulada</span>';
+  return repair.status === 'collected'
+    ? '<span class="status-badge done">Recogida</span>'
+    : '<span class="status-badge">Pendiente</span>';
+}
+
+// ---- List
+function repairsTable(repairs) {
+  if (!repairs.length) return '<div class="empty">No hay reparaciones con este filtro</div>';
+  const row = (repair) => `
+    <tr class="clickable ${repair.voided ? 'deleted' : ''}" data-id="${repair.id}">
+      <td><b>${esc(repair.number)}</b></td>
+      <td class="num">${fmtDate(repair.date)}</td>
+      <td>${esc(repair.customer_name || '—')}<div class="desc">${esc(repair.customer_phone)}</div></td>
+      <td>${esc(deviceName(repair))}<div class="desc">${esc(workSummary(repair))}</div></td>
+      <td class="r num"><b>${repair.amount == null ? '—' : money(repair.amount)}</b></td>
+      <td style="text-decoration:none">${statusBadge(repair)}</td>
+    </tr>`;
+  return `
+    <table class="t">
+      <thead><tr><th>N.º</th><th>Fecha</th><th>Cliente</th><th>Terminal y reparación</th><th class="r">Importe</th><th>Estado</th></tr></thead>
+      <tbody>${repairs.map(row).join('')}</tbody>
+    </table>`;
+}
+
+async function renderList(root) {
+  let status = 'pending';
+  root.innerHTML = `
+    <div class="page-head">
+      <div><h1>Reparaciones</h1><div class="sub">Resguardos de los móviles que deja el cliente</div></div>
+      <span class="spacer"></span>
+      <a class="btn btn-primary" href="${SECTION}/nueva">${icon('plus')} Nueva reparación</a>
+    </div>
+    <div class="card card-pad" style="margin-bottom:14px">
+      <div class="row" style="gap:10px">
+        <div class="seg">${FILTERS.map(([value, label]) => `<button data-status="${value}">${label}</button>`).join('')}</div>
+        <input type="search" data-search placeholder="Buscar por número, cliente, teléfono, modelo o IMEI…" style="flex:1;min-width:200px">
+      </div>
+    </div>
+    <div class="card"><div class="table-wrap" data-list><div class="empty">Cargando…</div></div></div>`;
+
+  const search = root.querySelector('[data-search]');
+  async function load() {
+    root.querySelectorAll('[data-status]').forEach(button => button.classList.toggle('on', button.dataset.status === status));
+    const query = new URLSearchParams();
+    if (status) query.set('status', status);
+    if (search.value.trim()) query.set('q', search.value.trim());
+    const repairs = await tryApi(`/repairs?${query}`);
+    if (repairs) root.querySelector('[data-list]').innerHTML = repairsTable(repairs);
+  }
+
+  on(root, 'click', '[data-status]', (button) => {
+    status = button.dataset.status;
+    load();
+  });
+  on(root, 'click', '[data-id]', (row) => { location.hash = `${SECTION}/${row.dataset.id}`; });
+  search.addEventListener('input', debounce(load, 300));
+  await load();
+}
+
+// ---- Detail
+async function renderDetail(root, id) {
+  let repair;
+  try {
+    repair = await api(`/repairs/${id}`);
+  } catch (error) {
+    root.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+    return;
+  }
+  const isCollected = repair.status === 'collected';
+  const canMakeTicket = state.settings.modules.invoices && !repair.voided;
+  // Opens the ticket editor with the repair as its first line; its warranty is proposed from the product name.
+  const ticketUrl = `#/tickets/nueva?desc=${encodeURIComponent(`Reparacion ${deviceName(repair)}`)}${repair.amount == null ? '' : `&precio=${repair.amount}`}`;
+
+  root.innerHTML = `
+    <div class="page-head">
+      <a class="btn btn-icon" href="${SECTION}" title="Volver">${icon('left')}</a>
+      <div>
+        <h1>Reparación ${esc(repair.number)}</h1>
+        <div class="sub">${fmtDate(repair.date)} · ${esc(deviceName(repair))} · recibido por ${esc(repair.user_name || '')} · ${statusBadge(repair)}</div>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn btn-primary" data-print>${icon('print')} Imprimir resguardo</button>
+      ${repair.voided ? '' : `
+        <button class="btn" data-toggle-collected>${icon(isCollected ? 'undo' : 'check')} ${isCollected ? 'Marcar como pendiente' : 'Marcar como recogida'}</button>
+        <a class="btn" href="${SECTION}/${repair.id}?editar=1">${icon('edit')} Editar</a>`}
+      ${canMakeTicket ? `<a class="btn" href="${ticketUrl}">${icon('receipt')} Hacer ticket</a>` : ''}
+      ${isAdmin() && !repair.voided ? '<button class="btn btn-danger" data-void>Anular</button>' : ''}
+    </div>
+    <div class="notice" style="margin-bottom:14px">
+      Imprime <b>dos copias</b>: una firmada por el cliente para la tienda y otra para el cliente.
+    </div>
+    <div class="inv-preview-wrap" style="position:static">${repairReceipt(repair, state.settings)}</div>`;
+
+  on(root, 'click', '[data-print]', () => {
+    printDocument(repairReceipt(repair, state.settings), { format: 'ticket', filename: `Reparacion-${repair.number}` });
+  });
+  on(root, 'click', '[data-toggle-collected]', async () => {
+    const saved = await tryApi(`/repairs/${id}/status`, { method: 'POST', body: { status: isCollected ? 'pending' : 'collected' } });
+    if (saved) renderDetail(root, id);
+  });
+  on(root, 'click', '[data-void]', async () => {
+    const confirmed = await confirmDialog('¿Anular esta reparación? Seguirá guardada pero marcada como ANULADA.', { okText: 'Anular', danger: true });
+    if (confirmed && await tryApi(`/repairs/${id}/void`, { method: 'POST' })) renderDetail(root, id);
+  });
+}
+
+// ---- Editor (new or existing)
+async function renderEditor(root, id) {
+  const existing = id ? await tryApi(`/repairs/${id}`) : null;
+  if (id && !existing) return;
+  const config = state.settings.repairs;
+  const repair = existing || {
+    customer_name: '', customer_nif: '', customer_phone: '', brand: '', model: '', imei: '', carrier: '',
+    unlock_code: '', pattern: '', faults: [], notes: '', condition: '', amount: null,
+  };
+  let pattern = repair.pattern ? repair.pattern.split('-').map(Number) : [];
+  // Keeps faults saved on this repair even if they were later removed from settings.
+  const faultNames = [...new Set([...config.faults, ...repair.faults])];
+
+  const textField = (name, label, hint = '') => `
+    <label class="field">${label}${hint ? ` <span class="hint">${hint}</span>` : ''}
+      <input type="text" name="${name}" value="${esc(repair[name])}">
+    </label>`;
+
+  root.innerHTML = `
+    <div class="page-head">
+      <a class="btn btn-icon" href="${existing ? `${SECTION}/${id}` : SECTION}" title="Volver">${icon('left')}</a>
+      <div>
+        <h1>${existing ? `Editar reparación ${esc(existing.number)}` : 'Nueva reparación'}</h1>
+        ${existing ? '' : `<div class="sub">N.º previsto: ${esc(`${config.prefix || ''}${config.next_number}`)}</div>`}
+      </div>
+    </div>
+    <form class="card card-pad" data-form autocomplete="off" style="max-width:900px;display:flex;flex-direction:column;gap:18px">
+      <div>
+        <h3>Cliente</h3>
+        <div class="settings-grid">
+          ${textField('customer_name', 'Nombre y apellidos')}
+          ${textField('customer_phone', 'Teléfono')}
+          ${textField('customer_nif', 'NIF', 'para recoger el terminal si pierde el resguardo')}
+        </div>
+      </div>
+      <div>
+        <h3>Terminal</h3>
+        <div class="settings-grid">
+          ${textField('brand', 'Marca')}
+          ${textField('model', 'Modelo')}
+          ${textField('imei', 'IMEI')}
+          ${textField('carrier', 'Compañía telefónica')}
+          ${textField('unlock_code', 'Código de desbloqueo')}
+          <div class="field">Patrón de desbloqueo <span class="hint">pulsa los puntos en orden</span>
+            <div class="row" style="gap:14px;align-items:flex-start">
+              <div class="pattern-pad" data-pattern-pad></div>
+              <button type="button" class="btn btn-sm" data-clear-pattern>Borrar</button>
+            </div>
+          </div>
+          <label class="field wide">Estado del móvil <span class="hint">golpes, arañazos, lo que ya no funciona…</span>
+            <input type="text" name="condition" value="${esc(repair.condition)}">
+          </label>
+        </div>
+      </div>
+      <div>
+        <h3>Reparación</h3>
+        <div class="fault-grid">
+          ${faultNames.map(name => `
+            <label><input type="checkbox" name="fault" value="${esc(name)}" ${repair.faults.includes(name) ? 'checked' : ''}>${esc(name)}</label>`).join('')}
+        </div>
+        <div class="settings-grid" style="margin-top:14px">
+          <label class="field wide">Otros <span class="hint">ej.: deja la SIM en la tienda</span>
+            <input type="text" name="notes" value="${esc(repair.notes)}">
+          </label>
+          <label class="field">Importe (€) <span class="hint">déjalo vacío si aún no hay presupuesto</span>
+            <input class="money" name="amount" inputmode="decimal" placeholder="0,00" value="${repair.amount == null ? '' : moneyInput(repair.amount)}">
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">${icon('print')} ${existing ? 'Guardar' : 'Guardar e imprimir'}</button>
+        ${existing ? '' : '<button class="btn" type="button" data-save-only>Solo guardar</button>'}
+      </div>
+    </form>`;
+
+  const form = root.querySelector('[data-form]');
+
+  function renderPatternPad() {
+    root.querySelector('[data-pattern-pad]').innerHTML = PATTERN_DOTS.map(dot => {
+      const step = pattern.indexOf(dot) + 1;
+      return `<button type="button" data-dot="${dot}" class="${step ? 'used' : ''}">${step || ''}</button>`;
+    }).join('');
+  }
+
+  function readForm() {
+    const amount = parseMoney(form.elements.amount.value);
+    const text = (name) => form.elements[name].value;
+    return {
+      customer_name: text('customer_name'), customer_nif: text('customer_nif'), customer_phone: text('customer_phone'),
+      brand: text('brand'), model: text('model'), imei: text('imei'), carrier: text('carrier'),
+      unlock_code: text('unlock_code'), condition: text('condition'), notes: text('notes'),
+      pattern: pattern.join('-'),
+      faults: [...form.querySelectorAll('[name=fault]:checked')].map(checkbox => checkbox.value),
+      amount: Number.isFinite(amount) ? amount : null,
+    };
+  }
+
+  async function save({ print }) {
+    const body = readForm();
+    try {
+      if (existing) {
+        await api(`/repairs/${id}`, { method: 'PUT', body });
+        toast('Reparación guardada', 'ok');
+        location.hash = `${SECTION}/${id}`;
+        return;
+      }
+      const created = await api('/repairs', { method: 'POST', body });
+      toast(`Reparación ${created.number} guardada`, 'ok');
+      config.next_number = Number(config.next_number) + 1;
+      location.hash = `${SECTION}/${created.id}`;
+      if (!print) return;
+      const saved = await api(`/repairs/${created.id}`);
+      setTimeout(() => printDocument(repairReceipt(saved, state.settings), { format: 'ticket', filename: `Reparacion-${saved.number}` }), 300);
+    } catch (error) {
+      toast(error.message, 'err');
+    }
+  }
+
+  on(root, 'click', '[data-dot]', (button) => {
+    const dot = Number(button.dataset.dot);
+    if (!pattern.includes(dot)) pattern.push(dot);
+    renderPatternPad();
+  });
+  on(root, 'click', '[data-clear-pattern]', () => {
+    pattern = [];
+    renderPatternPad();
+  });
+  on(root, 'click', '[data-save-only]', () => save({ print: false }));
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    save({ print: true });
+  });
+
+  renderPatternPad();
+}
