@@ -32,7 +32,9 @@ La aplicación imprime desde el navegador, como cualquier página. Eso significa
 
 En *Administrar → Preferencias de impresión*:
 
-- Tamaño de papel: **58 mm** (a veces aparece como `58(48) x 210 mm` o `58 x 3276 mm`). Si puedes elegir, el más largo.
+- Tamaño de papel: **58 mm, el más corto** que ofrezca (suele llamarse `58(48) x 210 mm` o `58 x 297 mm`). **No elijas `58 x 3276 mm`**: con ese tamaño la impresora saca metros de papel en blanco.
+- Si hay una opción *Tipo de papel* o *Paper type*, elige **Recibo / Receipt** (corta donde acaba el texto) y no *Etiqueta / Label*.
+- Haz el mismo cambio en *Propiedades de impresora → Avanzadas → Valores predeterminados de impresión*, que es de donde los programas toman el tamaño.
 - Si los tickets salen cortados a lo ancho, es que hay seleccionado un papel de 80 mm.
 
 ## Imprimir desde la app (Chrome o Edge)
@@ -67,5 +69,5 @@ Para imprimir una factura en A4 desde ese mismo ordenador habrá que abrir Chrom
 | Sale texto raro o símbolos | Driver equivocado o "Generic / Text Only" |
 | El QR no sale o sale como letras | Igual: falta el driver correcto |
 | Ticket cortado por la derecha | Papel de 80 mm seleccionado, o el ancho en Ajustes no es 58 |
-| Mucho papel en blanco al final | Tamaño de papel fijo y largo en el driver; elige uno más corto o "recibo" |
+| Metros de papel en blanco antes o después del ticket | En el driver está elegido un papel muy largo (`58 x 3276 mm`). Elige el más corto y, si existe, tipo de papel "Recibo" |
 | El QR no se lee con el móvil | Papel gastado o cabezal sucio; prueba con un enlace más corto (QR con menos puntos) |
