@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Movil City Ventas
-version: "1.6.0"
+version: "1.7.0"
 tagline: Caja, tickets, facturas y archivos de la tienda
 icon: https://raw.githubusercontent.com/HackDuck3/movilcity-ventas/main/assets/icon.svg
 description: >-
