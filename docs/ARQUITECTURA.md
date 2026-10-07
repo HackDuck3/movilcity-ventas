@@ -44,8 +44,6 @@ public/
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
     repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
-    paper.js              Papel de seguridad de la tienda: qué dibujos y colores lleva cada documento A4
-    security-pattern.js   Los dibujos en sí: marco, emblema, banda, marca de agua y microtexto generados a partir de un texto
     purchase-contract.js  Contrato imprimible de compra de segunda mano (dos copias A4)
     delivery-note.js      Lee el texto de un albarán de proveedor (modelo, IMEIs y precio)
     movement-form.js      Formulario de venta/gasto
@@ -119,14 +117,11 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 - Al guardar, el servidor copia el **texto** de la garantía dentro de cada línea (`warranty_text`). Así, cambiar un texto en Ajustes no altera documentos ya emitidos.
 - Cada documento guarda `show_vat`: si se imprime el desglose de IVA o solo el total.
 
-### Papel de seguridad
+### Diseños de la factura
 
-- `security-pattern.js` dibuja en SVG el marco, el emblema, la banda, la marca de agua y el microtexto. Todo sale de un generador de números aleatorios con semilla: el mismo texto da siempre el mismo dibujo.
-- La semilla es el ajuste `invoice.paper_seed`; si está vacío, el nombre y el NIF de la tienda (`paperSeed()` en `paper.js`).
-- `invoice.paper_style` elige entre el papel de seguridad (`security`) y el liso (`plain`).
-- Las plantillas (factura, contrato y resguardo) no llaman a los dibujos directamente: piden `securityPaper(settings)` a `paper.js`, que devuelve las piezas (`layer`, `emblem`, `band`, `rule`) o `null` si el papel es liso. Los colores salen de `documentColors(settings)`.
-- El resguardo de reparación pide el marco en tamaño A5, uno por copia.
-- Los dibujos se guardan en memoria por semilla, porque el editor de facturas repinta la vista previa en cada tecla.
+- `invoice.js` construye los bloques de la factura una sola vez (`a4Blocks`: tienda, título, cliente, líneas, totales, pie) y cada diseño de `A4_DESIGNS` solo los coloca de otra forma.
+- El ajuste `invoice.layout` elige el diseño (`sidebar`, `banner` o `classic`); el aspecto de cada uno está en la sección *A4 designs* de `app.css`.
+- Para añadir un diseño: una entrada en `A4_DESIGNS`, sus estilos `.layout-nombre` y la opción en `SCHEMAS.facturas` de `views/settings.js`.
 - Las paletas de *Ajustes → Apariencia* (`PALETTES` en `views/settings.js`) guardan a la vez los colores de la app (`appearance`) y los de los documentos (`invoice.color_*`).
 
 ## Cómo está escrita una pantalla

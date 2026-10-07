@@ -2,8 +2,6 @@
 import {
   api, state, esc, icon, toast, modal, applyAppearance, moneyInput, parseMoney, today, confirmDialog, on, reloadView, tryApi,
 } from '../core.js';
-import { guillocheBand, emblem } from '../security-pattern.js';
-import { paperSeed, initialsOf } from '../paper.js';
 
 // The settings menu. A tab is either a form generated from SCHEMAS or one of the custom screens in CUSTOM_TABS.
 const TAB_GROUPS = [
@@ -17,7 +15,7 @@ const DEFAULT_TAB = 'tienda';
 
 // Each schema becomes a form. `key` is the settings group it edits; fields are grouped under section titles.
 // Field types: text, textarea, longtext, number, bool, color, select (needs options), list (one per line),
-// pairs (name + text rows), image and pattern (the seed of the security paper, with a preview).
+// pairs (name + text rows) and image.
 const SCHEMAS = {
   tienda: {
     key: 'shop',
@@ -183,16 +181,12 @@ const SCHEMAS = {
         title: 'Diseño de la factura',
         fields: [
           {
-            name: 'paper_style', type: 'select', label: 'Papel', wide: true,
-            options: [['security', 'Papel de seguridad: marco, marca de agua, emblema y microtexto'], ['plain', 'Liso, sin dibujos']],
-          },
-          {
-            name: 'paper_seed', type: 'pattern', label: 'Dibujo del papel', wide: true,
-            hint: 'Cada texto da un dibujo distinto. Vacío: el que sale del nombre y el NIF de tu tienda',
+            name: 'layout', type: 'select', label: 'Diseño', wide: true,
+            options: [['sidebar', 'Columna lateral de color'], ['banner', 'Cabecera de color'], ['classic', 'Clásico']],
           },
           { name: 'color_shop', type: 'color', label: 'Color del nombre de la tienda' },
-          { name: 'color_title', type: 'color', label: 'Color del título, las cabeceras y el dibujo' },
-          { name: 'color_accent', type: 'color', label: 'Color del total y segundo color del dibujo' },
+          { name: 'color_title', type: 'color', label: 'Color principal: columna, cabecera y títulos' },
+          { name: 'color_accent', type: 'color', label: 'Color de acento: total y detalles' },
         ],
       },
     ],
@@ -307,23 +301,16 @@ function paletteCard(palette, index) {
   const sameColor = (a, b) => String(a).toLowerCase() === b;
   const isInUse = sameColor(appearance.primary, palette.primary) && sameColor(appearance.accent, palette.accent)
     && sameColor(invoice.color_title, palette.primary) && sameColor(invoice.color_accent, palette.accent);
-  const seed = paperSeed(state.settings);
   return `
-    <div class="palette-card" style="--doc-title:${palette.primary};--doc-accent:${palette.accent};--doc-shop:${palette.shop}">
+    <div class="palette-card">
       <div class="row">
         <b>${palette.name}</b><span class="spacer"></span>
         ${isInUse ? '<span class="status-badge done">En uso</span>' : `<button type="button" class="btn btn-sm" data-use-palette="${index}">Usar</button>`}
       </div>
       <div class="palette-sample">
-        ${emblem(seed, initialsOf(state.settings.shop.name))}
-        <div>
-          <div class="palette-shop">${esc(state.settings.shop.name)}</div>
-          ${guillocheBand(seed)}
-          <div class="row">
-            <span class="palette-chip" style="background:${palette.primary}">Botones y títulos</span>
-            <span class="palette-chip" style="background:${palette.accent}">Total</span>
-          </div>
-        </div>
+        <span style="background:${palette.primary}">Principal</span>
+        <span style="background:${palette.accent}">Acento</span>
+        <span style="background:${palette.shop}">Tienda</span>
       </div>
     </div>`;
 }
@@ -404,15 +391,6 @@ function fieldHtml(field, value) {
           <div class="pairs-edit" data-pairs="${name}">${(value || []).map(pairRow).join('')}</div>
           <div><button type="button" class="btn btn-sm" data-add-pair="${name}">${icon('plus')} Añadir</button></div>
         </div>`;
-    case 'pattern':
-      return `
-        <div class="${css}">${title}
-          <div class="row">
-            <input type="text" name="${name}" value="${esc(value)}" placeholder="Automático" style="flex:1;min-width:180px">
-            <button type="button" class="btn btn-sm" data-random-pattern="${name}">Probar otro dibujo</button>
-          </div>
-          <div class="pattern-preview" data-pattern-preview="${name}"></div>
-        </div>`;
     case 'image':
       return `
         <div class="${css}">${title}
@@ -482,23 +460,6 @@ async function renderSchemaForm(body, schema) {
     preview.src = dataUrl;
     preview.style.display = dataUrl ? '' : 'none';
   }
-
-  // Shows the emblem and the band that the seed and colours in the form would print.
-  function renderPatternPreview() {
-    const preview = form.querySelector('[data-pattern-preview]');
-    if (!preview) return;
-    const seedInput = form.elements[preview.dataset.patternPreview];
-    const seed = paperSeed({ shop: state.settings.shop, invoice: { paper_seed: seedInput.value.trim() } });
-    preview.style.setProperty('--doc-title', form.elements.color_title.value);
-    preview.style.setProperty('--doc-accent', form.elements.color_accent.value);
-    preview.innerHTML = emblem(seed, initialsOf(state.settings.shop.name)) + guillocheBand(seed);
-  }
-  renderPatternPreview();
-  form.addEventListener('input', renderPatternPreview);
-  on(form, 'click', '[data-random-pattern]', (button) => {
-    form.elements[button.dataset.randomPattern].value = Math.random().toString(36).slice(2, 8).toUpperCase();
-    renderPatternPreview();
-  });
 
   on(form, 'input', 'input[type=color]', (input) => { input.nextElementSibling.textContent = input.value; });
   on(form, 'change', '[data-image-input]', async (input) => {

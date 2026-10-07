@@ -368,23 +368,43 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .invoice-doc .sum-total span:first-child { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .invoice-doc .sum-note { text-align: right; color: var(--doc-muted); font-size: 11px; margin-top: 4px; padding-right: 10px; }
 .invoice-doc .doc-end { margin-top: auto; padding-top: 18px; }
-.invoice-doc .doc-footer { padding-top: 10px; font-size: 10.5px; color: var(--doc-muted); text-align: center; white-space: pre-line; }
-.invoice-doc:not(.security-paper) .doc-footer { border-top: 1px solid var(--doc-line); }
+.invoice-doc .doc-footer { border-top: 1px solid var(--doc-line); padding-top: 10px; font-size: 10.5px; color: var(--doc-muted); text-align: center; white-space: pre-line; }
 
-/* Security paper: frame, watermark, emblem, guilloche band and microtext, all drawn by security-pattern.js.
-   Shared by the invoice, the purchase contract and each copy of the repair receipt. */
-.security-paper { isolation: isolate; }
-.paper-layer { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.paper-layer .frame { position: absolute; inset: 0; width: 100%; height: 100%; }
-.paper-layer .watermark { position: absolute; left: 50%; top: 56%; width: 150mm; height: 150mm; transform: translate(-50%, -50%); opacity: .07; }
-.emblem { width: 22mm; height: 22mm; flex: none; }
-.guilloche { display: block; width: 100%; height: 9mm; margin: 0.4mm 0; }
-.microtext { display: block; width: 100%; height: 0.8mm; }
-.invoice-doc.security-paper { border-top: 0; padding: 19mm 19mm 17mm; }
-.invoice-doc.security-paper .doc-brand { display: flex; align-items: center; gap: 12px; }
-.invoice-doc.security-paper .shop-logo { margin-bottom: 0; }
-.invoice-doc.security-paper .doc-customer, .contract-doc.security-paper .contract-parties section { background: rgba(244, 245, 248, .82); }
-.invoice-doc .doc-security { margin-top: 14px; }
+/* A4 designs. "classic" is the base above; the others rearrange the same blocks. */
+.invoice-doc.layout-sidebar, .invoice-doc.layout-banner { padding: 0; border-top: 0; }
+.invoice-doc .doc-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* sidebar: colour column on the left */
+.invoice-doc.layout-sidebar { flex-direction: row; }
+.layout-sidebar .doc-side { width: 62mm; flex: none; padding: 16mm 8mm 12mm; background: var(--doc-title); color: #fff; }
+.layout-sidebar .shop-logo { max-width: 46mm; background: #fff; border-radius: 6px; padding: 4px; }
+.layout-sidebar .shop-name { color: #fff; font-size: 23px; line-height: 1.15; }
+.layout-sidebar .shop-lines { color: rgba(255, 255, 255, .78); }
+.layout-sidebar .doc-customer { margin-top: 16mm; padding: 12px 0 0; max-width: none; background: none; border-radius: 0; border-left: 0; border-top: 3px solid var(--doc-accent); color: #fff; }
+.layout-sidebar .doc-customer h4 { color: rgba(255, 255, 255, .7); }
+.layout-sidebar .doc-main { padding: 16mm 14mm 12mm 12mm; }
+.layout-sidebar .doc-id { text-align: left; }
+.layout-sidebar .doc-title { font-size: 34px; max-width: none; letter-spacing: -.01em; }
+.layout-sidebar .doc-number { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 999px; background: var(--doc-accent); color: #fff; font-size: 13px; }
+.layout-sidebar .doc-date { display: inline-block; margin-left: 8px; }
+.layout-sidebar .doc-items { margin-top: 12mm; }
+.layout-sidebar .doc-items th { background: none; color: var(--doc-title); border-bottom: 2px solid var(--doc-title); padding-left: 0; }
+.layout-sidebar .doc-items td { padding-left: 0; }
+.layout-sidebar .doc-items th:first-child, .layout-sidebar .doc-items th:last-child { border-radius: 0; }
+.layout-sidebar .doc-bottom { grid-template-columns: 1fr 62mm; gap: 18px; }
+
+/* banner: colour block across the top */
+.layout-banner .doc-banner { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding: 15mm 16mm 9mm; background: var(--doc-title); color: #fff; border-bottom: 2.5mm solid var(--doc-accent); }
+.layout-banner .shop-logo { background: #fff; border-radius: 6px; padding: 4px; }
+.layout-banner .shop-name { color: #fff; font-size: 27px; }
+.layout-banner .shop-lines { color: rgba(255, 255, 255, .78); }
+.layout-banner .doc-title { color: #fff; font-size: 30px; }
+.layout-banner .doc-date { color: rgba(255, 255, 255, .78); }
+.layout-banner .doc-main { padding: 0 16mm 12mm; }
+.layout-banner .doc-customer { margin-top: 10mm; border-left-color: var(--doc-accent); }
+.layout-banner .doc-items { margin-top: 9mm; }
+.layout-banner .doc-items th { background: none; color: var(--doc-title); border-bottom: 2px solid var(--doc-title); }
+.layout-banner .doc-items th:first-child, .layout-banner .doc-items th:last-child { border-radius: 0; }
 .invoice-doc .void-stamp { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 90px; font-weight: 800; color: rgba(220, 38, 38, .22); border: 8px solid rgba(220, 38, 38, .22); padding: 0 30px; border-radius: 16px; }
 
 /* Thermal ticket: 72 mm printable on 80 mm paper, 48 mm on 58 mm paper */
@@ -498,18 +518,6 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .sheet-signatures { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .sheet-signatures div { border: 1px solid #111; height: 24mm; padding: 2px 5px; font-size: 9px; text-align: center; }
 .sheet-copy .void-stamp { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 60px; font-weight: 800; color: rgba(220, 38, 38, .22); border: 6px solid rgba(220, 38, 38, .22); padding: 0 20px; border-radius: 12px; }
-.sheet-brand { display: flex; align-items: center; gap: 8px; }
-/* On security paper each copy keeps clear of its frame, so everything is a little tighter */
-.sheet-copy.security-paper { padding: 12.5mm 12.5mm 11.5mm; gap: 6px; }
-.sheet-copy.security-paper header { border-bottom: 0; padding-bottom: 0; }
-.sheet-copy.security-paper .paper-layer .watermark { width: 104mm; height: 104mm; }
-.sheet-copy.security-paper .emblem { width: 13mm; height: 13mm; }
-.sheet-copy.security-paper .guilloche { height: 4mm; margin: 0.3mm 0; }
-.sheet-copy.security-paper .microtext { height: 0.7mm; }
-.sheet-copy.security-paper .sheet-title, .sheet-copy.security-paper .sheet-number, .sheet-copy.security-paper h2 { color: var(--doc-title); }
-.sheet-copy.security-paper .sheet-signatures div { height: 16mm; }
-.sheet-copy.security-paper .sheet-conditions { font-size: 7.6px; line-height: 1.25; }
-.sheet-copy.security-paper .shop-lines { font-size: 8.5px; line-height: 1.25; }
 @media print {
   .repair-sheet { box-shadow: none; height: calc(210mm - 0.2mm); }
 }
@@ -529,30 +537,12 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .contract-terms p { margin: 0 0 6px; text-align: justify; }
 .contract-signatures { margin-top: auto; padding-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .contract-signatures div { border: 1px solid var(--doc-ink); height: 32mm; padding: 4px 8px; font-size: 10.5px; text-align: center; }
-.contract-rule { padding-top: 10px; }
-/* On security paper the page loses room to the frame and the band, so the contract is set a little tighter */
-.contract-doc.security-paper { font-size: 11.5px; }
-.contract-doc.security-paper h4 { margin-top: 12px; }
-.contract-doc.security-paper .contract-intro { margin-top: 12px; }
-.contract-doc.security-paper .contract-terms p { margin-bottom: 4px; }
-.contract-doc.security-paper .contract-signatures { padding-top: 12px; }
-.contract-doc.security-paper .contract-signatures div { height: 20mm; }
-.contract-doc.security-paper .contract-parties { margin-top: 8px; }
-.contract-doc.security-paper .contract-table th, .contract-doc.security-paper .contract-table td { padding: 4px 0; }
 @media print {
   .contract-doc + .contract-doc { margin-top: 0; break-before: page; }
 }
 
-/* Palette cards in Settings > Appearance: each previews the emblem, the band and the two main colours */
-.palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
-.palette-card { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: #fff; color: #1f2430; }
-.palette-sample { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-.palette-sample > div { flex: 1; min-width: 0; }
-.palette-sample .emblem { width: 16mm; height: 16mm; }
-.palette-sample .guilloche { height: 6mm; }
-.palette-shop { font-weight: 750; font-size: 15px; color: var(--doc-shop); }
-.palette-chip { padding: 3px 9px; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 600; }
-
-/* Preview of the security paper in Settings */
-.pattern-preview { display: flex; align-items: center; gap: 14px; margin-top: 4px; padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: 10px; }
-.pattern-preview .guilloche { flex: 1; min-width: 0; }
+/* Palette cards in Settings > Appearance */
+.palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.palette-card { padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.palette-sample { display: flex; margin-top: 10px; border-radius: 8px; overflow: hidden; }
+.palette-sample span { flex: 1; padding: 14px 8px 6px; color: #fff; font-size: 11px; font-weight: 600; }

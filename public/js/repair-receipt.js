@@ -1,7 +1,6 @@
 // Printable repair receipt: an A4 landscape sheet with two A5 copies, or a thermal ticket.
 import { esc, money, fmtDate, fmtTime } from './core.js';
 import { thermalClass } from './invoice.js';
-import { securityPaper, documentColors } from './paper.js';
 
 const PATTERN_DOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -41,21 +40,14 @@ function sheetCopy(repair, settings, { label, showUnlock }) {
     <div class="${repair.faults.includes(name) ? 'checked' : ''}"><i></i>${esc(name)}</div>`).join('');
   const conditions = config.conditions.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
   const payment = paymentRows(repair);
-  // Each copy is an A5 page of its own, so it gets a frame of that size.
-  const paper = securityPaper(settings, 'a5');
-  const lettering = [shop.name, 'Resguardo de reparación', repair.number, fmtDate(repair.date)].filter(Boolean).join(' · ');
-  const mark = shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : paper?.emblem || '';
 
-  return `<section class="sheet-copy ${paper ? 'security-paper' : ''}" style="${documentColors(settings)}">
-    ${paper ? paper.layer : ''}
+  return `<section class="sheet-copy">
     ${repair.voided ? '<div class="void-stamp">ANULADA</div>' : ''}
     <header>
-      <div class="sheet-brand">
-        ${mark}
-        <div>
-          <h2>${esc(shop.name)}</h2>
-          <div class="shop-lines">${shopLines(shop)}</div>
-        </div>
+      <div>
+        ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
+        <h2>${esc(shop.name)}</h2>
+        <div class="shop-lines">${shopLines(shop)}</div>
       </div>
       <div class="sheet-id">
         <div class="sheet-title">Resguardo de reparación</div>
@@ -64,7 +56,6 @@ function sheetCopy(repair, settings, { label, showUnlock }) {
         <div class="copy-label">${label}</div>
       </div>
     </header>
-    ${paper ? paper.band(lettering) : ''}
     <div class="sheet-columns">
       <div>
         <h4>Datos del terminal</h4>

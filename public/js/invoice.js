@@ -1,7 +1,6 @@
 // Printable documents: A4 invoice and thermal ticket (58 or 80 mm paper).
 import { state, esc, money, fmtDate, fmtTime } from './core.js';
 import { qrSvg } from './qr.js';
-import { securityPaper, documentColors } from './paper.js';
 
 const paperWidth = (settings) => (Number(settings.invoice.paper_width) === 80 ? 80 : 58);
 
@@ -97,48 +96,66 @@ function conditionsBlock(inv, cfg) {
   </div>`;
 }
 
-export function invoiceA4(inv, settings) {
+// ---- A4 designs
+// Every design is built from the same blocks and only arranges them differently.
+function a4Blocks(inv, settings) {
   const { shop, invoice: cfg } = settings;
   const customer = customerLines(inv);
-  const title = documentTitle(inv, cfg);
-  const paper = securityPaper(settings);
-  // Printed in microtext, so the number and date cannot be changed without it showing.
-  const lettering = [shop.name, title, inv.number, fmtDate(inv.date)].filter(Boolean).join(' · ');
-  // The shop's logo, when there is one, takes the place of the emblem.
-  const mark = shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : paper?.emblem || '';
-
-  return `<div class="invoice-doc ${paper ? 'security-paper' : ''}" style="${documentColors(settings)}">
-    ${paper ? paper.layer : ''}
-    ${inv.voided ? '<div class="void-stamp">ANULADA</div>' : ''}
-    <header class="doc-head">
+  return {
+    voidStamp: inv.voided ? '<div class="void-stamp">ANULADA</div>' : '',
+    brand: `
       <div class="doc-brand">
-        ${mark}
-        <div>
-          <h2 class="shop-name">${esc(shop.name)}</h2>
-          <div class="shop-lines">${shopLines(shop)}</div>
-        </div>
-      </div>
+        ${shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : ''}
+        <h2 class="shop-name">${esc(shop.name)}</h2>
+        <div class="shop-lines">${shopLines(shop)}</div>
+      </div>`,
+    id: `
       <div class="doc-id">
-        <div class="doc-title">${esc(title)}</div>
+        <div class="doc-title">${esc(documentTitle(inv, cfg))}</div>
         <div class="doc-number">N.º ${esc(inv.number || '—')}</div>
         <div class="doc-date">${fmtDate(inv.date)}</div>
-      </div>
-    </header>
-    ${paper ? paper.band(lettering) : ''}
-    ${customer ? `<section class="doc-customer"><h4>Cliente</h4>${customer}</section>` : ''}
-    <table class="doc-items">
-      <thead><tr><th>Descripción</th><th class="r">Cant.</th><th class="r">Precio</th><th class="r">Importe</th></tr></thead>
-      <tbody>${itemRows(inv)}</tbody>
-    </table>
-    <div class="doc-bottom">
-      ${conditionsBlock(inv, cfg)}
-      ${totalsBlock(inv, cfg)}
-    </div>
-    <div class="doc-end">
-      ${paper ? paper.rule(lettering) : ''}
-      ${cfg.footer ? `<footer class="doc-footer">${esc(cfg.footer)}</footer>` : ''}
-    </div>
-  </div>`;
+      </div>`,
+    customer: customer ? `<section class="doc-customer"><h4>Cliente</h4>${customer}</section>` : '',
+    items: `
+      <table class="doc-items">
+        <thead><tr><th>Descripción</th><th class="r">Cant.</th><th class="r">Precio</th><th class="r">Importe</th></tr></thead>
+        <tbody>${itemRows(inv)}</tbody>
+      </table>`,
+    bottom: `<div class="doc-bottom">${conditionsBlock(inv, cfg)}${totalsBlock(inv, cfg)}</div>`,
+    footer: cfg.footer ? `<footer class="doc-footer">${esc(cfg.footer)}</footer>` : '',
+  };
+}
+
+const A4_DESIGNS = {
+  // Shop on the left, document on the right, everything else below.
+  classic: (b) => `
+    <header class="doc-head">${b.brand}${b.id}</header>
+    ${b.customer}${b.items}${b.bottom}
+    <div class="doc-end">${b.footer}</div>`,
+
+  // A full-height colour column with the shop and the customer; the document itself on white.
+  sidebar: (b) => `
+    <aside class="doc-side">${b.brand}${b.customer}</aside>
+    <div class="doc-main">
+      ${b.id}${b.items}${b.bottom}
+      <div class="doc-end">${b.footer}</div>
+    </div>`,
+
+  // A colour block across the top with the shop and the document title.
+  banner: (b) => `
+    <header class="doc-banner">${b.brand}${b.id}</header>
+    <div class="doc-main">
+      ${b.customer}${b.items}${b.bottom}
+      <div class="doc-end">${b.footer}</div>
+    </div>`,
+};
+
+export function invoiceA4(inv, settings) {
+  const cfg = settings.invoice;
+  const design = A4_DESIGNS[cfg.layout] ? cfg.layout : 'sidebar';
+  const colors = `--doc-shop:${esc(cfg.color_shop)};--doc-title:${esc(cfg.color_title)};--doc-accent:${esc(cfg.color_accent)}`;
+  const blocks = a4Blocks(inv, settings);
+  return `<div class="invoice-doc layout-${design}" style="${colors}">${blocks.voidStamp}${A4_DESIGNS[design](blocks)}</div>`;
 }
 
 export function ticket80(inv, settings) {

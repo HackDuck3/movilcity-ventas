@@ -13,7 +13,7 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 - [Instalación](#instalación)
 - [Usuarios y permisos](#usuarios-y-permisos)
 - [Cómo se calcula el beneficio](#cómo-se-calcula-el-beneficio)
-- [Papel de seguridad](#papel-de-seguridad)
+- [Diseño de los documentos](#diseño-de-los-documentos)
 - [Datos y copias de seguridad](#datos-y-copias-de-seguridad)
 - [Avisos legales](#avisos-legales)
 - [Desarrollo](#desarrollo)
@@ -23,7 +23,7 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 | Sección | Para qué sirve |
 |---|---|
 | **Caja** | Apuntar ventas y gastos del día en segundos. Se escribe el producto, el precio y el coste o el beneficio; el resto se calcula. |
-| **Tickets y facturas** | Factura simplificada (ticket) y factura completa, cada una con su numeración. Papel de seguridad propio, garantía por tipo de producto, IVA desglosado opcional y conversión de ticket en factura. |
+| **Tickets y facturas** | Factura simplificada (ticket) y factura completa, cada una con su numeración. Tres diseños a elegir, garantía por tipo de producto, IVA desglosado opcional y conversión de ticket en factura. |
 | **Reparaciones** | Resguardo con los datos del terminal, las averías, la fecha prevista y la señal. Seguimiento *en reparación → lista → recogida*, aviso por WhatsApp y cobro en caja al entregar. |
 | **Stock** | Alta de cada móvil con su IMEI y su coste. Al venderlo, el beneficio se calcula solo. |
 | **Compras** | Compra de móviles usados a particulares, con contrato para firmar, foto del documento de identidad y registro exportable. |
@@ -35,7 +35,7 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 
 Las secciones que no se usen se desactivan en *Ajustes → Módulos*.
 
-| Factura en papel de seguridad | Resguardo de reparación (dos copias) |
+| Factura (diseño de columna lateral) | Resguardo de reparación (dos copias) |
 |---|---|
 | ![Factura](docs/img/factura.jpg) | ![Resguardo de reparación](docs/img/reparacion.jpg) |
 
@@ -94,21 +94,15 @@ Cada venta guarda su precio y su beneficio. Para no restar dos veces el coste de
 | Beneficio neto | Beneficio de ventas − gastos operativos | Lo que gana el negocio |
 | Flujo de caja | Ventas − todos los gastos | El dinero que entra o sale |
 
-## Papel de seguridad
+## Diseño de los documentos
 
-Las facturas, los tickets impresos en A4, el contrato de compra y el resguardo de reparación usan un papel con dibujos de línea fina como los de los billetes y los diplomas:
+La factura, y el ticket cuando se imprime en A4, tiene tres diseños para elegir en *Ajustes → Tickets y facturas → Diseño de la factura*:
 
-- un **marco** de líneas entrelazadas alrededor de la página, con una roseta en cada esquina,
-- un **emblema** con las iniciales de la tienda (o su logo, si lo tiene),
-- una **banda** entrelazada bajo la cabecera,
-- una **marca de agua**: una roseta grande y tenue detrás del contenido,
-- **microtexto**: líneas de letra de medio milímetro con el nombre de la tienda, el número y la fecha del documento, que se leen con lupa en el original y se emborronan al fotocopiarlo.
-
-Todos los dibujos se calculan a partir de un texto. Por defecto es el nombre y el NIF de la tienda, de modo que cada tienda obtiene un papel distinto sin hacer nada. En *Ajustes → Tickets y facturas → Diseño de la factura* se puede probar otro dibujo o volver al papel liso.
+- **Columna lateral de color**: una franja a toda la altura con los datos de la tienda y del cliente, y el documento a la derecha.
+- **Cabecera de color**: un bloque de color arriba con la tienda y el título.
+- **Clásico**: fondo blanco, tienda a la izquierda y título a la derecha.
 
 Los colores se eligen en *Ajustes → Apariencia*: cada paleta cambia a la vez los de la aplicación y los de los documentos.
-
-Este papel no impide que alguien escanee una factura, pero hace inviable imitarla con una plantilla de procesador de textos.
 
 ## Datos y copias de seguridad
 
