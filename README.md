@@ -96,11 +96,13 @@ Cada venta guarda su precio y su beneficio. Para no restar dos veces el coste de
 
 ## Diseño de los documentos
 
-La factura, y el ticket cuando se imprime en A4, tiene tres diseños para elegir en *Ajustes → Tickets y facturas → Diseño de la factura*:
+Los documentos en A4 comparten diseño y colores. Hay tres diseños para elegir en *Ajustes → Tickets y facturas → Diseño de la factura*:
 
 - **Columna lateral de color**: una franja a toda la altura con los datos de la tienda y del cliente, y el documento a la derecha.
 - **Cabecera de color**: un bloque de color arriba con la tienda y el título.
 - **Clásico**: fondo blanco, tienda a la izquierda y título a la derecha.
+
+La factura, el ticket en A4 y el contrato de compra usan el diseño elegido tal cual. El resguardo de reparación, que lleva dos copias pequeñas por hoja, usa una cabecera de color en lugar de la columna.
 
 Los colores se eligen en *Ajustes → Apariencia*: cada paleta cambia a la vez los de la aplicación y los de los documentos.
 

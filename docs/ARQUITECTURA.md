@@ -121,6 +121,8 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 
 - `invoice.js` construye los bloques de la factura una sola vez (`a4Blocks`: tienda, título, cliente, líneas, totales, pie) y cada diseño de `A4_DESIGNS` solo los coloca de otra forma.
 - El ajuste `invoice.layout` elige el diseño (`sidebar`, `banner` o `classic`); el aspecto de cada uno está en la sección *A4 designs* de `app.css`.
+- El contrato (`purchase-contract.js`) tiene sus propias colocaciones, `CONTRACT_DESIGNS`, con las mismas clases. El resguardo de reparación solo toma los colores y una cabecera, porque cada copia es un A5.
+- `documentDesign()` y `documentColors()` de `invoice.js` dan a todas las plantillas el diseño y los colores elegidos.
 - Para añadir un diseño: una entrada en `A4_DESIGNS`, sus estilos `.layout-nombre` y la opción en `SCHEMAS.facturas` de `views/settings.js`.
 - Las paletas de *Ajustes → Apariencia* (`PALETTES` en `views/settings.js`) guardan a la vez los colores de la app (`appearance`) y los de los documentos (`invoice.color_*`).
 

@@ -150,12 +150,18 @@ const A4_DESIGNS = {
     </div>`,
 };
 
+// The design and colours chosen in Settings, shared by every A4 document (invoice, contract, repair receipt).
+export const documentDesign = (settings) => (A4_DESIGNS[settings.invoice.layout] ? settings.invoice.layout : 'sidebar');
+
+export function documentColors(settings) {
+  const { color_shop: shop, color_title: title, color_accent: accent } = settings.invoice;
+  return `--doc-shop:${esc(shop)};--doc-title:${esc(title)};--doc-accent:${esc(accent)}`;
+}
+
 export function invoiceA4(inv, settings) {
-  const cfg = settings.invoice;
-  const design = A4_DESIGNS[cfg.layout] ? cfg.layout : 'sidebar';
-  const colors = `--doc-shop:${esc(cfg.color_shop)};--doc-title:${esc(cfg.color_title)};--doc-accent:${esc(cfg.color_accent)}`;
+  const design = documentDesign(settings);
   const blocks = a4Blocks(inv, settings);
-  return `<div class="invoice-doc layout-${design}" style="${colors}">${blocks.voidStamp}${A4_DESIGNS[design](blocks)}</div>`;
+  return `<div class="invoice-doc layout-${design}" style="${documentColors(settings)}">${blocks.voidStamp}${A4_DESIGNS[design](blocks)}</div>`;
 }
 
 export function ticket80(inv, settings) {

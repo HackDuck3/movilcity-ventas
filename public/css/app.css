@@ -518,6 +518,17 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .sheet-signatures { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .sheet-signatures div { border: 1px solid #111; height: 24mm; padding: 2px 5px; font-size: 9px; text-align: center; }
 .sheet-copy .void-stamp { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 60px; font-weight: 800; color: rgba(220, 38, 38, .22); border: 6px solid rgba(220, 38, 38, .22); padding: 0 20px; border-radius: 12px; }
+/* The repair receipt takes the colours of the chosen design: each copy gets a colour header.
+   A side column would leave too little room on an A5 copy, so both colour designs use the header. */
+.sheet-copy.layout-sidebar, .sheet-copy.layout-banner { padding-top: 0; }
+.sheet-copy.layout-sidebar header, .sheet-copy.layout-banner header { margin: 0 -9mm; padding: 7mm 9mm 4mm; background: var(--doc-title); color: #fff; border-bottom: 1.4mm solid var(--doc-accent); align-items: flex-end; }
+.sheet-copy.layout-sidebar header .shop-lines, .sheet-copy.layout-banner header .shop-lines,
+.sheet-copy.layout-sidebar header .copy-label, .sheet-copy.layout-banner header .copy-label { color: rgba(255, 255, 255, .8); }
+.sheet-copy.layout-sidebar .logo, .sheet-copy.layout-banner .logo { background: #fff; border-radius: 4px; padding: 2px; }
+.sheet-copy.layout-sidebar h4, .sheet-copy.layout-banner h4 { color: var(--doc-title); }
+.sheet-copy.layout-sidebar .sheet-amount, .sheet-copy.layout-banner .sheet-amount { border-color: var(--doc-title); }
+.sheet-copy.layout-sidebar .sheet-amount div:last-child b, .sheet-copy.layout-banner .sheet-amount div:last-child b { color: var(--doc-accent); }
+.sheet-copy.layout-sidebar .sheet-signatures div, .sheet-copy.layout-banner .sheet-signatures div { border-color: var(--doc-title); height: 21mm; }
 @media print {
   .repair-sheet { box-shadow: none; height: calc(210mm - 0.2mm); }
 }
@@ -526,17 +537,23 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .contract-doc { font-size: 12px; }
 .contract-doc + .contract-doc { margin-top: 18px; }
 .contract-doc .copy-label { margin-top: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--doc-muted); }
-.contract-doc h4 { margin-top: 18px; }
-.contract-intro { margin: 18px 0 0; }
-.contract-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
-.contract-parties section { padding: 10px 12px; background: #f6f7f9; border-radius: 8px; border-left: 3px solid var(--doc-title); }
-.contract-parties h4 { margin-top: 0; }
+.contract-doc h4 { margin-top: 12px; }
+.contract-intro { margin: 12px 0 0; }
+.contract-doc .shop-lines b { text-transform: uppercase; font-size: 10.5px; letter-spacing: .08em; }
+.contract-doc.layout-sidebar .doc-title { font-size: 25px; }
+.contract-doc.layout-sidebar .copy-label, .contract-doc.layout-banner .copy-label { color: inherit; opacity: .75; }
+.contract-doc.layout-sidebar .copy-label { color: var(--doc-muted); opacity: 1; }
+.contract-doc.layout-banner .doc-title { font-size: 24px; }
+.contract-doc.layout-sidebar .contract-intro:first-of-type { margin-top: 10mm; }
+.contract-doc.layout-banner .doc-banner { padding-top: 11mm; padding-bottom: 6mm; }
+.contract-doc.layout-banner .doc-customer { margin-top: 6mm; }
+.contract-doc .doc-customer h4 { margin-top: 0; }
 .contract-table { width: 100%; border-collapse: collapse; }
 .contract-table th { text-align: left; width: 34mm; color: var(--doc-muted); font-weight: 600; }
 .contract-table th, .contract-table td { padding: 5px 0; border-bottom: 1px solid var(--doc-line); vertical-align: top; }
-.contract-terms p { margin: 0 0 6px; text-align: justify; }
+.contract-terms p { margin: 0 0 4px; text-align: justify; }
 .contract-signatures { margin-top: auto; padding-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.contract-signatures div { border: 1px solid var(--doc-ink); height: 32mm; padding: 4px 8px; font-size: 10.5px; text-align: center; }
+.contract-signatures div { border: 1px solid var(--doc-ink); height: 22mm; padding: 4px 8px; font-size: 10.5px; text-align: center; }
 @media print {
   .contract-doc + .contract-doc { margin-top: 0; break-before: page; }
 }

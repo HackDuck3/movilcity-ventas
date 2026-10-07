@@ -1,6 +1,6 @@
 // Printable repair receipt: an A4 landscape sheet with two A5 copies, or a thermal ticket.
 import { esc, money, fmtDate, fmtTime } from './core.js';
-import { thermalClass } from './invoice.js';
+import { thermalClass, documentDesign, documentColors } from './invoice.js';
 
 const PATTERN_DOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -41,7 +41,7 @@ function sheetCopy(repair, settings, { label, showUnlock }) {
   const conditions = config.conditions.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
   const payment = paymentRows(repair);
 
-  return `<section class="sheet-copy">
+  return `<section class="sheet-copy layout-${documentDesign(settings)}" style="${documentColors(settings)}">
     ${repair.voided ? '<div class="void-stamp">ANULADA</div>' : ''}
     <header>
       <div>
