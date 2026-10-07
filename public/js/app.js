@@ -7,6 +7,7 @@ import { ticketsView, invoicesView } from './views/invoices.js';
 import { repairsView } from './views/repairs.js';
 import { stockView } from './views/stock.js';
 import { searchView } from './views/search.js';
+import { purchasesView } from './views/purchases.js';
 import { filesView } from './views/files.js';
 import { settingsView } from './views/settings.js';
 
@@ -21,6 +22,7 @@ const ROUTES = [
   { segment: 'buscar', view: searchView, access: 'all', icon: 'search', label: 'Buscar' },
   { segment: 'reparaciones', view: repairsView, access: 'repairs', icon: 'wrench', label: 'Reparaciones' },
   { segment: 'stock', view: stockView, access: 'stock', icon: 'phone', label: 'Stock' },
+  { segment: 'compras', view: purchasesView, access: 'purchases', icon: 'swap', label: 'Compras' },
   { segment: 'tickets', view: ticketsView, access: 'invoices', icon: 'receipt', label: 'Tickets' },
   { segment: 'facturas', view: invoicesView, access: 'invoices', icon: 'invoice', label: 'Facturas' },
   { segment: 'movimientos', view: movementsView, access: 'admin', icon: 'list', label: 'Movimientos' },
@@ -36,6 +38,7 @@ function canAccess(access) {
     case 'invoices': return modules.invoices && can('worker_create_invoices');
     case 'repairs': return modules.repairs && can('worker_create_repairs');
     case 'stock': return modules.stock;
+    case 'purchases': return modules.purchases && can('worker_create_purchases');
     case 'files': return modules.files && isAdmin();
     default: return false;
   }

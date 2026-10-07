@@ -28,6 +28,7 @@ src/
     invoices.js           Tickets y facturas
     repairs.js            Resguardos de reparación
     stock.js              Stock de móviles
+    purchases.js          Compras de móviles de segunda mano a particulares
     search.js             Buscador general
     stats.js              Cifras del panel del dueño
     settings.js           Guardar ajustes (con validación)
@@ -43,6 +44,7 @@ public/
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
     repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
+    purchase-contract.js  Contrato imprimible de compra de segunda mano (dos copias A4)
     delivery-note.js      Lee el texto de un albarán de proveedor (modelo, IMEIs y precio)
     movement-form.js      Formulario de venta/gasto
     charts.js             Gráficos SVG
@@ -52,6 +54,7 @@ public/
       invoices.js         Tickets y facturas (listado, detalle y editor)
       repairs.js          Reparaciones (listado, detalle y editor)
       stock.js            Stock de móviles
+      purchases.js        Compras de segunda mano
       search.js           Buscar en todo
       movements.js        Movimientos
       files.js            Archivos
@@ -102,6 +105,7 @@ El tercer argumento es el acceso: `'public'` (sin sesión), `'user'` (cualquier 
 | `invoices` | Tickets (`kind = 'ticket'`) y facturas (`kind = 'factura'`). Las líneas van en `items` como JSON |
 | `repairs` | Resguardos de reparación: cliente, terminal, averías, importe, señal, fecha prevista y estado (`pending` / `collected`; con `ready_at` relleno está lista para recoger) |
 | `devices` | Móviles en stock: coste, precio previsto y, al venderse, la venta (`movement_id`) |
+| `purchases` | Compras de segunda mano: vendedor, móvil, precio y la foto del DNI (el archivo está en `data/id-documents/`) |
 | `files` | Datos de los archivos subidos; el contenido está en `data/files/` |
 
 El esquema completo, comentado, está al principio de `src/db.js`.

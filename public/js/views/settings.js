@@ -6,7 +6,7 @@ import {
 const TABS = [
   ['tienda', 'Tienda'], ['apariencia', 'Apariencia'], ['productos', 'Productos'], ['gastos', 'Motivos de gasto'],
   ['usuarios', 'Usuarios'], ['permisos', 'Permisos'], ['ventas', 'Ventas'], ['facturas', 'Tickets y facturas'],
-  ['reparaciones', 'Reparaciones'], ['archivos', 'Archivos'], ['modulos', 'Módulos'], ['datos', 'Datos y copias'],
+  ['reparaciones', 'Reparaciones'], ['compras', 'Compras'], ['archivos', 'Archivos'], ['modulos', 'Módulos'], ['datos', 'Datos y copias'],
 ];
 
 // Tabs listed here are forms generated from a schema; `key` is the settings group they edit.
@@ -47,6 +47,7 @@ const SCHEMAS = {
       { name: 'worker_add_expenses', type: 'bool', label: 'Puede registrar gastos' },
       { name: 'worker_create_invoices', type: 'bool', label: 'Puede hacer facturas y tickets' },
       { name: 'worker_create_repairs', type: 'bool', label: 'Puede gestionar reparaciones' },
+      { name: 'worker_create_purchases', type: 'bool', label: 'Puede comprar móviles de segunda mano', hint: 'Verá los datos de los vendedores, pero no las fotos de los DNI ya guardadas' },
       { name: 'worker_edit_minutes', type: 'number', label: 'Minutos para corregir o borrar sus propios apuntes', hint: '0 = nunca. Pasado este tiempo, solo el administrador puede corregir.' },
       { name: 'worker_history_days', type: 'number', label: 'Días anteriores que puede consultar', hint: '0 = solo el día de hoy' },
     ],
@@ -101,6 +102,15 @@ const SCHEMAS = {
       { name: 'ready_message', type: 'textarea', label: 'Mensaje de WhatsApp "ya está listo"', hint: 'Puedes usar {nombre}, {terminal}, {numero}, {importe} y {tienda}', wide: true },
     ],
   },
+  compras: {
+    key: 'purchases',
+    intro: 'Contrato para comprar móviles de segunda mano a particulares. Las cláusulas son un borrador: pide a tu gestoría que las revise.',
+    fields: [
+      { name: 'prefix', type: 'text', label: 'Serie de compras (prefijo)', hint: 'Ej.: "C-" → C-1, C-2…' },
+      { name: 'next_number', type: 'number', label: 'Próximo número' },
+      { name: 'terms', type: 'longtext', label: 'Cláusulas del contrato', hint: 'Un párrafo por línea', wide: true },
+    ],
+  },
   modulos: {
     key: 'modules',
     intro: 'Activa o desactiva partes de la aplicación.',
@@ -108,6 +118,7 @@ const SCHEMAS = {
       { name: 'invoices', type: 'bool', label: 'Tickets y facturas' },
       { name: 'repairs', type: 'bool', label: 'Reparaciones' },
       { name: 'stock', type: 'bool', label: 'Stock de móviles' },
+      { name: 'purchases', type: 'bool', label: 'Compras de segunda mano' },
       { name: 'payment_methods', type: 'bool', label: 'Formas de pago' },
       { name: 'files', type: 'bool', label: 'Archivos de la tienda', hint: 'Solo visible para administradores' },
     ],

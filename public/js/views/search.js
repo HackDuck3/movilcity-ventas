@@ -25,6 +25,12 @@ const SECTIONS = [
     note: () => '',
   },
   {
+    key: 'purchases', title: 'Compras de segunda mano', icon: 'swap',
+    url: (purchase) => `#/compras/${purchase.id}`,
+    label: (purchase) => `Compra ${purchase.number}`,
+    note: (purchase) => (purchase.voided ? 'Anulada' : ''),
+  },
+  {
     key: 'movements', title: 'Ventas y gastos', icon: 'list',
     url: (movement) => (movement.invoice_id ? `#/facturas/${movement.invoice_id}` : `#/caja?fecha=${movement.date}`),
     label: (movement) => (movement.type === 'sale' ? 'Venta' : 'Gasto'),

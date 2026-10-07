@@ -56,6 +56,17 @@ function searchStock(query) {
     }));
 }
 
+function searchPurchases(query) {
+  const match = matchAny(['number', 'seller_name', 'seller_nif', 'brand', 'model', 'imei'], query);
+  return all(`SELECT id, number, date, seller_name, brand, model, imei, price, voided FROM purchases
+              WHERE ${match.condition} ORDER BY id DESC LIMIT ?`, ...match.values, RESULTS_PER_SECTION)
+    .map(purchase => ({
+      id: purchase.id, number: purchase.number, date: purchase.date,
+      title: [purchase.brand, purchase.model, `IMEI ${purchase.imei}`].filter(Boolean).join(' '),
+      customer: purchase.seller_name, amount: euros(purchase.price), voided: purchase.voided,
+    }));
+}
+
 function searchMovements(query) {
   const match = matchAny(['m.description', 'c.name'], query);
   return all(`SELECT m.id, m.type, m.date, m.description, m.amount, m.invoice_id, c.name AS category
@@ -71,7 +82,7 @@ function searchMovements(query) {
 
 route('GET', '/api/search', 'user', ({ user, query }) => {
   const text = str(query.q, 80);
-  if (text.length < MIN_QUERY_LENGTH) return { invoices: [], repairs: [], stock: [], movements: [] };
+  if (text.length < MIN_QUERY_LENGTH) return { invoices: [], repairs: [], stock: [], purchases: [], movements: [] };
 
   const isAdmin = user.role === 'admin';
   const modules = getSetting('modules');
@@ -82,6 +93,7 @@ route('GET', '/api/search', 'user', ({ user, query }) => {
     invoices: modules.invoices && allowed('worker_create_invoices') ? searchInvoices(text, user) : [],
     repairs: modules.repairs && allowed('worker_create_repairs') ? searchRepairs(text) : [],
     stock: modules.stock ? searchStock(text) : [],
+    purchases: modules.purchases && allowed('worker_create_purchases') ? searchPurchases(text) : [],
     movements: isAdmin ? searchMovements(text) : [],
   };
 });

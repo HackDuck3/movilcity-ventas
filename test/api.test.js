@@ -260,6 +260,31 @@ test('selling a phone from stock records the sale with its profit', async () => 
   assert.equal((await admin('DELETE', `/api/admin/stock/${device.data.id}`)).status, 400);
 });
 
+test('buying a used phone adds it to stock, records the expense and keeps the identity document private', async () => {
+  const expense = (await admin('GET', '/api/categories')).data.find(c => c.name === 'Compra de móviles');
+  const seller = { seller_name: 'Seller Name', seller_nif: '00000000T', seller_address: 'Street 1', model: 'Used A5', imei: '358000000000001', price: 80 };
+  assert.equal((await admin('POST', '/api/purchases', { ...seller, seller_nif: '' })).status, 400);
+
+  const before = (await admin('GET', '/api/day')).data.totals.expenses;
+  const purchase = await admin('POST', '/api/purchases', { ...seller, brand: 'Brand', add_to_stock: true, expense_category_id: expense.id, payment_method: 'Efectivo' });
+  assert.equal(purchase.data.number, 'C-1');
+  assert.equal((await admin('GET', '/api/day')).data.totals.expenses - before, 80);
+  const inStock = (await admin('GET', '/api/stock?q=358000000000001')).data[0];
+  assert.deepEqual([inStock.condition, inStock.cost], ['used', 80]);
+
+  const photo = Buffer.from('fake-jpeg-bytes');
+  const url = `/api/purchases/${purchase.data.id}/id-document`;
+  assert.equal((await admin('POST', url, photo, { 'Content-Type': 'application/pdf' })).status, 400);
+  assert.equal((await admin('POST', url, photo, { 'Content-Type': 'image/jpeg' })).status, 200);
+  const saved = (await admin('GET', `/api/purchases/${purchase.data.id}`)).data;
+  assert.deepEqual([saved.has_id_document, saved.id_document], [true, undefined]);
+  assert.equal((await admin('GET', `/api/admin/purchases/${purchase.data.id}/id-document`)).data.toString(), 'fake-jpeg-bytes');
+
+  const register = (await admin('GET', '/api/admin/purchases-register.csv')).data.toString('utf8');
+  assert.match(register, /C-1;.*Seller Name;00000000T;Street 1/);
+  assert.equal((await admin('GET', '/api/search?q=Seller')).data.purchases.length, 1);
+});
+
 test('settings are validated and saved', async () => {
   const saved = await admin('PUT', '/api/admin/settings/invoice', {
     vat_rate: 10, color_title: 'not-a-colour',
@@ -282,6 +307,8 @@ test('workers are limited by permissions', async () => {
   assert.equal(day.sales[0].profit, undefined);
   const expense = (await worker('GET', '/api/categories')).data.find(c => c.kind === 'expense');
   assert.equal((await worker('POST', '/api/movements', { type: 'expense', category_id: expense.id, amount: 3 })).status, 403);
+  assert.equal((await worker('GET', '/api/purchases')).status, 403);
+  assert.equal((await worker('GET', '/api/admin/purchases/1/id-document')).status, 403);
 
   const users = (await admin('GET', '/api/admin/users')).data;
   await admin('PUT', `/api/admin/users/${users.find(u => u.username === 'worker').id}`, { active: false });

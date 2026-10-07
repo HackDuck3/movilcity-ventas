@@ -57,6 +57,18 @@ const REPAIR_CONDITIONS = [
   'Si en tres meses el terminal no se recoge, procederemos a su retirada.',
 ].join('\n');
 
+// Draft clauses for buying a used phone from a private seller. Editable in Settings; have an adviser review them.
+const PURCHASE_TERMS = [
+  '1. El vendedor declara ser mayor de edad y propietario legítimo del terminal, que lo adquirió lícitamente y que no procede de robo, hurto ni extravío.',
+  '2. El vendedor declara que el terminal está libre de cargas: no está sujeto a financiación ni a permanencia pendiente, no está bloqueado por ningún operador y su IMEI no figura en listas de terminales bloqueados.',
+  '3. El vendedor entrega el terminal sin cuentas asociadas (iCloud, Google, Samsung u otras) ni bloqueos de activación, y facilita los códigos necesarios para restablecerlo.',
+  '4. El vendedor ha eliminado, o autoriza al comprador a eliminar, todos los datos personales contenidos en el terminal. El comprador no se responsabiliza de los datos que no se hayan retirado.',
+  '5. Si alguna de estas declaraciones resultara falsa, o el terminal quedara bloqueado por una causa anterior a esta venta, el vendedor devolverá íntegramente el precio recibido, sin perjuicio de las acciones legales que correspondan.',
+  '6. El vendedor recibe en este acto el precio indicado y declara no tener nada más que reclamar por esta venta.',
+  '7. El comprador anota esta operación en su registro de compras de objetos usados y podrá comunicarla a las Fuerzas y Cuerpos de Seguridad conforme a la normativa de seguridad ciudadana.',
+  '8. Los datos del vendedor y la copia de su documento de identidad se conservan únicamente para cumplir las obligaciones legales de registro y acreditar la procedencia del terminal.',
+].join('\n');
+
 const DEFAULT_SETTINGS = {
   shop: {
     name: 'Movil City',
@@ -82,6 +94,7 @@ const DEFAULT_SETTINGS = {
     worker_add_expenses: true,
     worker_create_invoices: true,
     worker_create_repairs: true,
+    worker_create_purchases: false, // buying used phones from customers
     worker_edit_minutes: 15, // 0 = workers can never edit their own entries
     worker_history_days: 0,  // 0 = workers only see today
   },
@@ -122,10 +135,16 @@ const DEFAULT_SETTINGS = {
     // Placeholders: {nombre} {terminal} {numero} {importe} {tienda}
     ready_message: 'Hola {nombre}, tu {terminal} ya está listo para recoger en {tienda}. Resguardo n.º {numero}.',
   },
+  purchases: {
+    prefix: 'C-',
+    next_number: 1,
+    terms: PURCHASE_TERMS,
+  },
   modules: {
     invoices: true,
     repairs: true,
     stock: true,
+    purchases: true,
     payment_methods: true,
     files: true,
   },

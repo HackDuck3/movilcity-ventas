@@ -5,7 +5,7 @@ const { route, fail } = require('../http');
 const { str, isColor } = require('../utils');
 
 const MAX_LOGO_LENGTH = 1_500_000;
-const LONG_TEXT_FIELDS = ['conditions'];
+const LONG_TEXT_FIELDS = ['conditions', 'terms'];
 const isColorField = (field) => field.startsWith('color') || field === 'primary' || field === 'accent';
 
 // Coerces an incoming value to the type of its default. Returns undefined to keep the current value.

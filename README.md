@@ -159,6 +159,16 @@ Sección **Stock**: el administrador da de alta cada móvil con marca, modelo, I
 
 **Añadir albarán**: pega el texto del albarán del proveedor (copiado de un PDF o de una foto con el móvil) y la app saca cada móvil con su IMEI y su coste en una tabla para revisar antes de añadirlos todos de una vez.
 
+### Compras de segunda mano
+Sección **Compras**: para cuando la tienda compra un móvil usado a un particular.
+- Se apuntan el vendedor (nombre, DNI/NIE, domicilio), el móvil (marca, modelo, IMEI, estado) y el precio, y se imprime un **contrato de compraventa** con dos copias para firmar.
+- Se puede adjuntar la **foto del DNI**, que se guarda solo en tu servidor (`data/id-documents`) y solo puede ver el administrador.
+- El móvil entra en el **stock** como segunda mano y el pago se apunta como **gasto** en caja, si dejas marcadas esas casillas.
+- **Registro de compras (CSV)**: listado con todas las compras del año, para la gestoría o por si lo pide la policía.
+- Las cláusulas del contrato están en *Ajustes → Compras*. Son un borrador: que las revise tu gestoría.
+
+> ⚠️ La Ley Orgánica 4/2015 de seguridad ciudadana (art. 25) impone obligaciones de registro documental al comercio de objetos usados. Pregunta en tu comisaría de Policía Nacional o a tu gestoría qué registro y qué comunicaciones te exigen exactamente.
+
 ### Buscar
 Sección **Buscar**: una sola caja que busca a la vez en tickets, facturas, reparaciones, stock y (para el administrador) ventas y gastos, por nombre, teléfono, IMEI, modelo o número.
 

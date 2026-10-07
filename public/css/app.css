@@ -467,3 +467,22 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 @media print {
   .repair-sheet { box-shadow: none; height: calc(210mm - 0.2mm); }
 }
+
+/* Second-hand purchase contract: reuses the invoice page, one copy per sheet */
+.contract-doc { font-size: 12px; }
+.contract-doc + .contract-doc { margin-top: 18px; }
+.contract-doc .copy-label { margin-top: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--doc-muted); }
+.contract-doc h4 { margin-top: 18px; }
+.contract-intro { margin: 18px 0 0; }
+.contract-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+.contract-parties section { padding: 10px 12px; background: #f6f7f9; border-radius: 8px; border-left: 3px solid var(--doc-title); }
+.contract-parties h4 { margin-top: 0; }
+.contract-table { width: 100%; border-collapse: collapse; }
+.contract-table th { text-align: left; width: 34mm; color: var(--doc-muted); font-weight: 600; }
+.contract-table th, .contract-table td { padding: 5px 0; border-bottom: 1px solid var(--doc-line); vertical-align: top; }
+.contract-terms p { margin: 0 0 6px; text-align: justify; }
+.contract-signatures { margin-top: auto; padding-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.contract-signatures div { border: 1px solid var(--doc-ink); height: 32mm; padding: 4px 8px; font-size: 10.5px; text-align: center; }
+@media print {
+  .contract-doc + .contract-doc { margin-top: 0; break-before: page; }
+}

@@ -15,10 +15,12 @@ try {
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'ventas.db');
 const FILES_DIR = path.join(DATA_DIR, 'files');
+const ID_DOCUMENTS_DIR = path.join(DATA_DIR, 'id-documents');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const BACKUPS_TO_KEEP = 30;
 
 fs.mkdirSync(FILES_DIR, { recursive: true });
+fs.mkdirSync(ID_DOCUMENTS_DIR, { recursive: true });
 
 const db = new Database(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
@@ -157,6 +159,31 @@ CREATE TABLE IF NOT EXISTS devices (
   created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- Used phones bought from private sellers, each with a signed contract.
+-- id_document is the file name, inside ID_DOCUMENTS_DIR, of the photo of the seller's identity card.
+CREATE TABLE IF NOT EXISTS purchases (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  number         TEXT NOT NULL,
+  date           TEXT NOT NULL,
+  seller_name    TEXT NOT NULL,
+  seller_nif     TEXT NOT NULL,
+  seller_address TEXT NOT NULL DEFAULT '',
+  seller_phone   TEXT NOT NULL DEFAULT '',
+  brand          TEXT NOT NULL DEFAULT '',
+  model          TEXT NOT NULL,
+  imei           TEXT NOT NULL DEFAULT '',
+  condition      TEXT NOT NULL DEFAULT '',
+  price          INTEGER NOT NULL,
+  payment_method TEXT NOT NULL DEFAULT '',
+  id_document    TEXT,
+  id_document_mime TEXT,
+  device_id      INTEGER REFERENCES devices(id),
+  movement_id    INTEGER REFERENCES movements(id),
+  user_id        INTEGER REFERENCES users(id),
+  created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  voided         INTEGER NOT NULL DEFAULT 0
+);
+
 -- Uploaded shop documents. The content lives on disk at FILES_DIR/<stored_name>.
 CREATE TABLE IF NOT EXISTS files (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -260,4 +287,4 @@ function backup() {
 
 const backupToTemp = () => snapshotTo(path.join(DATA_DIR, `export-${Date.now()}.db`));
 
-module.exports = { db, all, get, run, tx, backup, backupToTemp, DB_PATH, DATA_DIR, FILES_DIR };
+module.exports = { db, all, get, run, tx, backup, backupToTemp, DB_PATH, DATA_DIR, FILES_DIR, ID_DOCUMENTS_DIR };
