@@ -24,7 +24,7 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 |---|---|
 | **Caja** | Apuntar ventas y gastos del día en segundos. Se escribe el producto, el precio y el coste o el beneficio; el resto se calcula. |
 | **Tickets y facturas** | Factura simplificada (ticket) y factura completa, cada una con su numeración. Tres diseños a elegir, garantía por tipo de producto, IVA desglosado opcional y conversión de ticket en factura. |
-| **Reparaciones** | Resguardo con los datos del terminal, las averías, la fecha prevista y la señal. Seguimiento *en reparación → lista → recogida*, aviso por WhatsApp y cobro en caja al entregar. |
+| **Reparaciones** | De móviles y de portátiles. Resguardo con los datos del equipo, las averías, la fecha prevista y la señal. Seguimiento *en reparación → lista → recogida*, aviso por WhatsApp y cobro en caja al entregar. |
 | **Stock** | Alta de cada móvil con su IMEI y su coste. Al venderlo, el beneficio se calcula solo. |
 | **Compras** | Compra de móviles usados a particulares, con contrato para firmar, foto del documento de identidad y registro exportable. |
 | **Buscar** | Una sola caja para tickets, facturas, reparaciones, stock, compras y movimientos. |

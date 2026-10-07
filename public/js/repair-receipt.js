@@ -4,6 +4,19 @@ import { thermalClass, documentDesign, documentColors } from './invoice.js';
 
 const PATTERN_DOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
+// What changes between kinds of device: the wording, which fields apply and which list of usual repairs is offered.
+export const DEVICE_TYPES = {
+  phone: {
+    label: 'Móvil', heading: 'Datos del terminal', serial: 'IMEI', code: 'Código desbloqueo', condition: 'Estado del móvil',
+    hasCarrier: true, hasPattern: true, faultsSetting: 'faults',
+  },
+  laptop: {
+    label: 'Portátil', heading: 'Datos del equipo', serial: 'N.º de serie', code: 'Contraseña', condition: 'Estado del equipo',
+    hasCarrier: false, hasPattern: false, faultsSetting: 'laptop_faults',
+  },
+};
+export const deviceTypeOf = (repair) => DEVICE_TYPES[repair.device_type] || DEVICE_TYPES.phone;
+
 // 3x3 grid where each dot of the unlock pattern shows its position in the sequence.
 export function patternGrid(pattern) {
   const sequence = pattern ? pattern.split('-').map(Number) : [];
@@ -35,7 +48,8 @@ function sheetCopy(repair, settings, { label, showUnlock }) {
   const { shop, repairs: config } = settings;
   const field = (label, value) => `<div class="sheet-field"><span>${label}</span><b>${esc(value || '')}</b></div>`;
   // Faults saved on the repair are listed even if they were later removed from settings.
-  const faultNames = [...new Set([...config.faults, ...repair.faults])];
+  const device = deviceTypeOf(repair);
+  const faultNames = [...new Set([...config[device.faultsSetting], ...repair.faults])];
   const faults = faultNames.map(name => `
     <div class="${repair.faults.includes(name) ? 'checked' : ''}"><i></i>${esc(name)}</div>`).join('');
   const conditions = config.conditions.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
@@ -58,12 +72,12 @@ function sheetCopy(repair, settings, { label, showUnlock }) {
     </header>
     <div class="sheet-columns">
       <div>
-        <h4>Datos del terminal</h4>
+        <h4>${device.heading}</h4>
         ${field('Marca', repair.brand)}
         ${field('Modelo', repair.model)}
-        ${field('IMEI', repair.imei)}
-        ${showUnlock ? field('Código desbloqueo', repair.unlock_code) : ''}
-        ${field('Compañía', repair.carrier)}
+        ${field(device.serial, repair.imei)}
+        ${showUnlock ? field(device.code, repair.unlock_code) : ''}
+        ${device.hasCarrier ? field('Compañía', repair.carrier) : ''}
         ${field('Entrega prevista', repair.due_on ? fmtDate(repair.due_on) : '')}
       </div>
       <div>
@@ -76,14 +90,14 @@ function sheetCopy(repair, settings, { label, showUnlock }) {
         </div>
       </div>
     </div>
-    <div class="sheet-columns ${showUnlock ? '' : 'single'}">
+    <div class="sheet-columns ${showUnlock && device.hasPattern ? '' : 'single'}">
       <div>
         <h4>Reparación</h4>
         <div class="sheet-faults">${faults}</div>
         ${field('Otros', repair.notes)}
-        ${field('Estado del móvil', repair.condition)}
+        ${field(device.condition, repair.condition)}
       </div>
-      ${showUnlock ? `<div class="sheet-pattern"><h4>Patrón</h4>${patternGrid(repair.pattern)}</div>` : ''}
+      ${showUnlock && device.hasPattern ? `<div class="sheet-pattern"><h4>Patrón</h4>${patternGrid(repair.pattern)}</div>` : ''}
     </div>
     ${config.disclaimer ? `<div class="sheet-disclaimer">${esc(config.disclaimer)}</div>` : ''}
     ${conditions ? `<div class="sheet-conditions"><h4>Condiciones del servicio</h4>${conditions}</div>` : ''}
@@ -101,6 +115,7 @@ export function repairSheet(repair, settings) {
 
 export function repairReceipt(repair, settings) {
   const { shop, repairs: config } = settings;
+  const type = deviceTypeOf(repair);
   const device = [repair.brand, repair.model].filter(Boolean).join(' ');
   const work = [...repair.faults, repair.notes].filter(Boolean);
   const conditions = config.conditions.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
@@ -116,12 +131,12 @@ export function repairReceipt(repair, settings) {
     ${line('NIF', repair.customer_nif)}
     ${line('Teléfono', repair.customer_phone)}
     <hr>
-    ${line('Terminal', device)}
-    ${line('IMEI', repair.imei)}
-    ${line('Compañía', repair.carrier)}
-    ${line('Código de desbloqueo', repair.unlock_code)}
-    ${repair.pattern ? `<div><b>Patrón:</b></div>${patternGrid(repair.pattern)}` : ''}
-    ${line('Estado del móvil', repair.condition)}
+    ${line(type.label, device)}
+    ${line(type.serial, repair.imei)}
+    ${type.hasCarrier ? line('Compañía', repair.carrier) : ''}
+    ${line(type.code, repair.unlock_code)}
+    ${type.hasPattern && repair.pattern ? `<div><b>Patrón:</b></div>${patternGrid(repair.pattern)}` : ''}
+    ${line(type.condition, repair.condition)}
     ${line('Entrega prevista', repair.due_on ? fmtDate(repair.due_on) : '')}
     <hr>
     <div><b>Reparación:</b></div>

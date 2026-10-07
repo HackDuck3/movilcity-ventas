@@ -49,6 +49,7 @@ function findRepair(id) {
 
 function fieldsFromBody(body) {
   const fields = {
+    device_type: body.device_type === 'laptop' ? 'laptop' : 'phone',
     customer_name: str(body.customer_name, 120),
     customer_nif: str(body.customer_nif, 30),
     customer_phone: str(body.customer_phone, 30),
@@ -65,7 +66,7 @@ function fieldsFromBody(body) {
     deposit: cents(body.deposit) || null,
     due_on: isDate(body.due_on) ? body.due_on : null,
   };
-  if (!fields.brand && !fields.model) fail(400, 'Indica la marca o el modelo del terminal');
+  if (!fields.brand && !fields.model) fail(400, 'Indica la marca o el modelo');
   if (!fields.customer_name && !fields.customer_phone) fail(400, 'Indica el nombre o el teléfono del cliente');
   if (fields.faults === '[]' && !fields.notes) fail(400, 'Marca al menos una reparación o descríbela en "Otros"');
   if (fields.amount !== null && fields.amount < 0) fail(400, 'El importe no puede ser negativo');
@@ -137,10 +138,10 @@ route('POST', '/api/repairs', 'user', ({ user, body }) => {
   const date = user.role === 'admin' && isDate(body.date) ? body.date : localDate();
   return tx(() => {
     const number = takeNextNumber();
-    const { id } = run(`INSERT INTO repairs (number, date, customer_name, customer_nif, customer_phone, brand, model, imei, carrier,
+    const { id } = run(`INSERT INTO repairs (number, date, device_type, customer_name, customer_nif, customer_phone, brand, model, imei, carrier,
                         unlock_code, pattern, faults, notes, condition, amount, deposit, due_on, user_id)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      number, date, f.customer_name, f.customer_nif, f.customer_phone, f.brand, f.model, f.imei, f.carrier,
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      number, date, f.device_type, f.customer_name, f.customer_nif, f.customer_phone, f.brand, f.model, f.imei, f.carrier,
       f.unlock_code, f.pattern, f.faults, f.notes, f.condition, f.amount, f.deposit, f.due_on, user.id);
     if (f.deposit && body.register_deposit) registerDeposit({ ...f, id, number }, body.register_deposit, user);
     return { ok: true, id, number };
@@ -154,9 +155,9 @@ route('PUT', '/api/repairs/:id', 'user', ({ user, params, body }) => {
   const f = fieldsFromBody(body);
   // Once the deposit is in the register its amount is fixed, so both always agree.
   const deposit = repair.deposit_movement_id ? repair.deposit : f.deposit;
-  run(`UPDATE repairs SET customer_name=?, customer_nif=?, customer_phone=?, brand=?, model=?, imei=?, carrier=?,
+  run(`UPDATE repairs SET device_type=?, customer_name=?, customer_nif=?, customer_phone=?, brand=?, model=?, imei=?, carrier=?,
        unlock_code=?, pattern=?, faults=?, notes=?, condition=?, amount=?, deposit=?, due_on=? WHERE id=?`,
-    f.customer_name, f.customer_nif, f.customer_phone, f.brand, f.model, f.imei, f.carrier,
+    f.device_type, f.customer_name, f.customer_nif, f.customer_phone, f.brand, f.model, f.imei, f.carrier,
     f.unlock_code, f.pattern, f.faults, f.notes, f.condition, f.amount, deposit, f.due_on, repair.id);
   return { ok: true };
 });

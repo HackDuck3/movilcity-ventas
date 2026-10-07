@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS invoices (
 CREATE INDEX IF NOT EXISTS idx_inv_kind ON invoices(kind, id);
 
 -- Repair receipts: the slip the customer keeps while the shop has their device.
+-- For a laptop, imei holds the serial number and unlock_code the user's password.
 -- faults is a JSON array of names; pattern is the unlock pattern as dot numbers, e.g. '1-4-7-8'.
 -- A pending repair with ready_at set is repaired and waiting for the customer.
 -- deposit is what the customer paid in advance; deposit_movement_id is that payment in the register.
@@ -119,6 +120,7 @@ CREATE TABLE IF NOT EXISTS repairs (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   number         TEXT NOT NULL,
   date           TEXT NOT NULL,
+  device_type    TEXT NOT NULL DEFAULT 'phone', -- 'phone' | 'laptop'
   status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','collected')),
   collected_at   TEXT,
   customer_name  TEXT NOT NULL DEFAULT '',
@@ -237,6 +239,7 @@ function migrate() {
 
   if (!hasColumn('invoices', 'replaces_id')) db.exec('ALTER TABLE invoices ADD COLUMN replaces_id INTEGER');
   if (!hasColumn('invoices', 'show_vat')) db.exec('ALTER TABLE invoices ADD COLUMN show_vat INTEGER');
+  if (!hasColumn('repairs', 'device_type')) db.exec("ALTER TABLE repairs ADD COLUMN device_type TEXT NOT NULL DEFAULT 'phone'");
   if (!hasColumn('repairs', 'movement_id')) db.exec('ALTER TABLE repairs ADD COLUMN movement_id INTEGER');
   for (const [column, type] of [['ready_at', 'TEXT'], ['due_on', 'TEXT'], ['deposit', 'INTEGER'], ['deposit_movement_id', 'INTEGER']]) {
     if (!hasColumn('repairs', column)) db.exec(`ALTER TABLE repairs ADD COLUMN ${column} ${type}`);

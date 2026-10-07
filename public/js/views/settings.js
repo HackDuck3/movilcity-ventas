@@ -213,7 +213,8 @@ const SCHEMAS = {
         title: 'Resguardo',
         fields: [
           { name: 'print_format', type: 'select', label: 'Formato', wide: true, options: [['a4', 'Folio A4 apaisado con dos copias (cliente y tienda)'], ['ticket', 'Impresora térmica de tickets']] },
-          { name: 'faults', type: 'list', label: 'Reparaciones habituales', hint: 'Una por línea. Son las casillas que se marcan al recibir un móvil', wide: true, rows: 8 },
+          { name: 'faults', type: 'list', label: 'Reparaciones habituales de móviles', hint: 'Una por línea. Son las casillas que se marcan al recibir un móvil', wide: true, rows: 8 },
+          { name: 'laptop_faults', type: 'list', label: 'Reparaciones habituales de portátiles', hint: 'Una por línea', wide: true, rows: 6 },
           { name: 'disclaimer', type: 'textarea', label: 'Aviso destacado', wide: true },
           { name: 'conditions', type: 'longtext', label: 'Condiciones del servicio', hint: 'Un párrafo por línea', wide: true },
         ],

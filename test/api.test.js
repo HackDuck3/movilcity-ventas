@@ -233,6 +233,16 @@ test('one search finds tickets, repairs, stock and movements', async () => {
   assert.equal((await admin('GET', '/api/search?q=x')).data.repairs.length, 0);
 });
 
+test('a repair can be for a laptop', async () => {
+  assert.ok((await admin('GET', '/api/me')).data.settings.repairs.laptop_faults.includes('Formateo'));
+  const created = await admin('POST', '/api/repairs', {
+    device_type: 'laptop', brand: 'Brand', model: 'Book 14', imei: 'SN123', customer_phone: '622', faults: ['Formateo'],
+  });
+  const saved = (await admin('GET', `/api/repairs/${created.data.id}`)).data;
+  assert.deepEqual([saved.device_type, saved.imei], ['laptop', 'SN123']);
+  await admin('POST', `/api/repairs/${created.data.id}/status`, { status: 'collected' });
+});
+
 test('old pending repairs are listed as forgotten', async () => {
   const old = await admin('POST', '/api/repairs', { model: 'Old phone', customer_phone: '600', notes: 'Battery', date: '2020-01-01' });
   const forgotten = (await admin('GET', '/api/repairs?status=forgotten')).data;

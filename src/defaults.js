@@ -47,6 +47,12 @@ const REPAIR_FAULTS = [
   'Liberar', 'Botón de volumen', 'Batería', 'Cobertura / wifi', 'Formatear', 'Jack', 'Sensor',
 ];
 
+const LAPTOP_REPAIR_FAULTS = [
+  'Instalación de sistema operativo', 'Formateo', 'Copia de datos', 'Instalación de programas', 'Virus / va lento',
+  'Limpieza interna', 'Cambio de disco / SSD', 'Ampliación de memoria RAM', 'Pantalla', 'Teclado', 'Batería',
+  'Cargador / conector de carga', 'Bisagras / carcasa', 'No enciende',
+];
+
 const REPAIR_CONDITIONS = [
   '1. En caso de pérdida o extravío del presente documento, solo podrá ser retirado el terminal objeto de la reparación previa acreditación de la identidad del titular, mediante la exhibición del DNI/NIF aportado en la presente ficha de reparación.',
   '2. En ningún caso se devolverá el importe de la liberación o reparación efectuada si el terminal es bloqueado por la compañía telefónica.',
@@ -191,6 +197,7 @@ const DEFAULT_SETTINGS = {
     prefix: 'R-',
     next_number: 1,
     faults: REPAIR_FAULTS,
+    laptop_faults: LAPTOP_REPAIR_FAULTS,
     disclaimer: 'No nos hacemos responsables de cualquier otro fallo que tenga el móvil, solo de nuestra reparación.',
     conditions: REPAIR_CONDITIONS,
     print_format: 'a4', // 'a4' (landscape sheet with two A5 copies) | 'ticket' (thermal printer)

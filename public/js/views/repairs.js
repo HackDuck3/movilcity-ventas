@@ -2,7 +2,7 @@
 import {
   api, state, esc, icon, money, fmtDate, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, redrawOnResize, reloadView, tryApi,
 } from '../core.js';
-import { repairReceipt, repairSheet } from '../repair-receipt.js';
+import { repairReceipt, repairSheet, DEVICE_TYPES, deviceTypeOf } from '../repair-receipt.js';
 import { printDocument } from '../invoice.js';
 
 const SECTION = '#/reparaciones';
@@ -63,7 +63,7 @@ function repairsTable(repairs) {
       <td><b>${esc(repair.number)}</b></td>
       <td class="num">${fmtDate(repair.date)}${repair.due_on ? `<div class="desc">entrega ${fmtDate(repair.due_on)}</div>` : ''}</td>
       <td>${esc(repair.customer_name || '—')}<div class="desc">${esc(repair.customer_phone)}</div></td>
-      <td>${esc(deviceName(repair))}<div class="desc">${esc(workSummary(repair))}</div></td>
+      <td>${repair.device_type === 'laptop' ? '<span class="faint">Portátil · </span>' : ''}${esc(deviceName(repair))}<div class="desc">${esc(workSummary(repair))}</div></td>
       <td class="r num"><b>${repair.amount == null ? '—' : money(repair.amount)}</b></td>
       <td style="text-decoration:none">${statusBadge(repair)}</td>
     </tr>`;
@@ -277,6 +277,7 @@ async function renderEditor(root, id) {
   if (id && !existing) return;
   const config = state.settings.repairs;
   const repair = existing || {
+    device_type: 'phone',
     customer_name: '', customer_nif: '', customer_phone: '', brand: '', model: '', imei: '', carrier: '',
     unlock_code: '', pattern: '', faults: [], notes: '', condition: '', amount: null, deposit: null, due_on: '',
   };
@@ -285,8 +286,6 @@ async function renderEditor(root, id) {
   const { sales, modules } = state.settings;
   const repairCategory = state.categories.find(category => category.kind === 'sale' && category.active && category.name.toLowerCase().startsWith('reparaci'));
   let pattern = repair.pattern ? repair.pattern.split('-').map(Number) : [];
-  // Keeps faults saved on this repair even if they were later removed from settings.
-  const faultNames = [...new Set([...config.faults, ...repair.faults])];
 
   const textField = (name, label, hint = '') => `
     <label class="field">${label}${hint ? ` <span class="hint">${hint}</span>` : ''}
@@ -311,30 +310,14 @@ async function renderEditor(root, id) {
         </div>
       </div>
       <div>
-        <h3>Terminal</h3>
-        <div class="settings-grid">
-          ${textField('brand', 'Marca')}
-          ${textField('model', 'Modelo')}
-          ${textField('imei', 'IMEI')}
-          ${textField('carrier', 'Compañía telefónica')}
-          ${textField('unlock_code', 'Código de desbloqueo')}
-          <div class="field">Patrón de desbloqueo <span class="hint">pulsa los puntos en orden</span>
-            <div class="row" style="gap:14px;align-items:flex-start">
-              <div class="pattern-pad" data-pattern-pad></div>
-              <button type="button" class="btn btn-sm" data-clear-pattern>Borrar</button>
-            </div>
-          </div>
-          <label class="field wide">Estado del móvil <span class="hint">golpes, arañazos, lo que ya no funciona…</span>
-            <input type="text" name="condition" value="${esc(repair.condition)}">
-          </label>
+        <div class="seg" data-device-types>
+          ${Object.entries(DEVICE_TYPES).map(([key, type]) => `<button type="button" data-device-type="${key}">${type.label}</button>`).join('')}
         </div>
       </div>
+      <div data-device-fields></div>
       <div>
         <h3>Reparación</h3>
-        <div class="fault-grid">
-          ${faultNames.map(name => `
-            <label><input type="checkbox" name="fault" value="${esc(name)}" ${repair.faults.includes(name) ? 'checked' : ''}>${esc(name)}</label>`).join('')}
-        </div>
+        <div class="fault-grid" data-faults></div>
         <div class="settings-grid" style="margin-top:14px">
           <label class="field wide">Otros <span class="hint">ej.: deja la SIM en la tienda</span>
             <input type="text" name="notes" value="${esc(repair.notes)}">
@@ -365,8 +348,41 @@ async function renderEditor(root, id) {
 
   const form = root.querySelector('[data-form]');
 
+  // The device fields and the list of usual repairs depend on the kind of device, so they are drawn apart
+  // and drawn again when the kind changes.
+  function renderDeviceSections() {
+    const device = deviceTypeOf(repair);
+    // Keeps faults saved on this repair even if they were later removed from settings.
+    const faultNames = [...new Set([...config[device.faultsSetting], ...repair.faults])];
+    root.querySelectorAll('[data-device-type]').forEach(button => button.classList.toggle('on', button.dataset.deviceType === repair.device_type));
+    root.querySelector('[data-device-fields]').innerHTML = `
+      <h3>${device.heading}</h3>
+      <div class="settings-grid">
+        ${textField('brand', 'Marca')}
+        ${textField('model', 'Modelo')}
+        ${textField('imei', device.serial)}
+        ${device.hasCarrier ? textField('carrier', 'Compañía telefónica') : ''}
+        ${textField('unlock_code', device.code, 'no sale en la copia del cliente')}
+        ${device.hasPattern ? `
+          <div class="field">Patrón de desbloqueo <span class="hint">pulsa los puntos en orden</span>
+            <div class="row" style="gap:14px;align-items:flex-start">
+              <div class="pattern-pad" data-pattern-pad></div>
+              <button type="button" class="btn btn-sm" data-clear-pattern>Borrar</button>
+            </div>
+          </div>` : ''}
+        <label class="field wide">${device.condition} <span class="hint">golpes, arañazos, lo que ya no funciona…</span>
+          <input type="text" name="condition" value="${esc(repair.condition)}">
+        </label>
+      </div>`;
+    root.querySelector('[data-faults]').innerHTML = faultNames.map(name => `
+      <label><input type="checkbox" name="fault" value="${esc(name)}" ${repair.faults.includes(name) ? 'checked' : ''}>${esc(name)}</label>`).join('');
+    renderPatternPad();
+  }
+
   function renderPatternPad() {
-    root.querySelector('[data-pattern-pad]').innerHTML = PATTERN_DOTS.map(dot => {
+    const pad = root.querySelector('[data-pattern-pad]');
+    if (!pad) return;
+    pad.innerHTML = PATTERN_DOTS.map(dot => {
       const step = pattern.indexOf(dot) + 1;
       return `<button type="button" data-dot="${dot}" class="${step ? 'used' : ''}">${step || ''}</button>`;
     }).join('');
@@ -375,7 +391,8 @@ async function renderEditor(root, id) {
   function readForm() {
     const amount = parseMoney(form.elements.amount.value);
     const deposit = parseMoney(form.elements.deposit.value);
-    const text = (name) => form.elements[name].value;
+    const text = (name) => form.elements[name]?.value ?? '';
+    const device = deviceTypeOf(repair);
     const registersDeposit = form.elements.register_deposit?.checked && deposit > 0;
     return {
       due_on: text('due_on'),
@@ -386,7 +403,8 @@ async function renderEditor(root, id) {
       customer_name: text('customer_name'), customer_nif: text('customer_nif'), customer_phone: text('customer_phone'),
       brand: text('brand'), model: text('model'), imei: text('imei'), carrier: text('carrier'),
       unlock_code: text('unlock_code'), condition: text('condition'), notes: text('notes'),
-      pattern: pattern.join('-'),
+      device_type: repair.device_type,
+      pattern: device.hasPattern ? pattern.join('-') : '',
       faults: [...form.querySelectorAll('[name=fault]:checked')].map(checkbox => checkbox.value),
       amount: Number.isFinite(amount) ? amount : null,
     };
@@ -417,6 +435,11 @@ async function renderEditor(root, id) {
     const options = root.querySelector('[data-deposit-options]');
     if (options) options.classList.toggle('hidden', !(parseMoney(form.elements.deposit.value) > 0));
   });
+  on(root, 'click', '[data-device-type]', (button) => {
+    // What is already typed is kept; the ticked repairs are not, because each kind has its own list.
+    Object.assign(repair, readForm(), { device_type: button.dataset.deviceType, faults: [] });
+    renderDeviceSections();
+  });
   on(root, 'click', '[data-dot]', (button) => {
     const dot = Number(button.dataset.dot);
     if (!pattern.includes(dot)) pattern.push(dot);
@@ -432,5 +455,5 @@ async function renderEditor(root, id) {
     save({ print: true });
   });
 
-  renderPatternPad();
+  renderDeviceSections();
 }
