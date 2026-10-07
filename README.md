@@ -13,7 +13,7 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 - [Instalación](#instalación)
 - [Usuarios y permisos](#usuarios-y-permisos)
 - [Cómo se calcula el beneficio](#cómo-se-calcula-el-beneficio)
-- [Documentos verificables](#documentos-verificables)
+- [Papel de seguridad](#papel-de-seguridad)
 - [Datos y copias de seguridad](#datos-y-copias-de-seguridad)
 - [Avisos legales](#avisos-legales)
 - [Desarrollo](#desarrollo)
@@ -23,11 +23,11 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 | Sección | Para qué sirve |
 |---|---|
 | **Caja** | Apuntar ventas y gastos del día en segundos. Se escribe el producto, el precio y el coste o el beneficio; el resto se calcula. |
-| **Tickets y facturas** | Factura simplificada (ticket) y factura completa, cada una con su numeración. Garantía por tipo de producto, IVA desglosado opcional y conversión de ticket en factura. |
+| **Tickets y facturas** | Factura simplificada (ticket) y factura completa, cada una con su numeración. Papel de seguridad propio, garantía por tipo de producto, IVA desglosado opcional y conversión de ticket en factura. |
 | **Reparaciones** | Resguardo con los datos del terminal, las averías, la fecha prevista y la señal. Seguimiento *en reparación → lista → recogida*, aviso por WhatsApp y cobro en caja al entregar. |
 | **Stock** | Alta de cada móvil con su IMEI y su coste. Al venderlo, el beneficio se calcula solo. |
 | **Compras** | Compra de móviles usados a particulares, con contrato para firmar, foto del documento de identidad y registro exportable. |
-| **Buscar** | Una sola caja para tickets, facturas, reparaciones, stock y movimientos. También comprueba códigos de verificación. |
+| **Buscar** | Una sola caja para tickets, facturas, reparaciones, stock, compras y movimientos. |
 | **Panel** | Ventas, beneficio y gastos por día, mes o año, comparados con el periodo anterior. Solo para administradores. |
 | **Movimientos** | Historial completo: filtrar, corregir, recuperar borrados y exportar a CSV. |
 | **Archivos** | Documentos de la tienda (contratos, albaranes, impuestos) ordenados en carpetas. |
@@ -35,7 +35,7 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 
 Las secciones que no se usen se desactivan en *Ajustes → Módulos*.
 
-| Factura con dibujo de seguridad | Resguardo de reparación (dos copias) |
+| Factura en papel de seguridad | Resguardo de reparación (dos copias) |
 |---|---|
 | ![Factura](docs/img/factura.jpg) | ![Resguardo de reparación](docs/img/reparacion.jpg) |
 
@@ -94,19 +94,19 @@ Cada venta guarda su precio y su beneficio. Para no restar dos veces el coste de
 | Beneficio neto | Beneficio de ventas − gastos operativos | Lo que gana el negocio |
 | Flujo de caja | Ventas − todos los gastos | El dinero que entra o sale |
 
-## Documentos verificables
+## Papel de seguridad
 
-Cada ticket y cada factura lleva un **código de verificación** de doce caracteres. El servidor lo calcula a partir del número, la fecha, el total y el cliente del documento, con una clave secreta que no sale de él. Sin esa clave no se puede obtener el código de un documento inventado ni el de uno al que se le haya cambiado el importe.
+Las facturas, y los tickets cuando se imprimen en A4, usan un papel con dibujos de línea fina como los de los billetes y los diplomas:
 
-La factura en A4 añade tres elementos dibujados a partir de ese código, distintos en cada documento:
+- un **marco** de líneas entrelazadas alrededor de la página, con una roseta en cada esquina,
+- un **emblema** con las iniciales de la tienda (o su logo, si lo tiene),
+- una **banda** entrelazada bajo la cabecera,
+- una **marca de agua**: una roseta grande y tenue detrás del contenido,
+- **microtexto**: líneas de letra de medio milímetro con el nombre de la tienda, el número y la fecha del documento, que se leen con lupa en el original y se emborronan al fotocopiarlo.
 
-- una **banda de líneas entrelazadas** bajo la cabecera,
-- un **sello en roseta** junto al código,
-- dos líneas de **microtexto** con el nombre de la tienda, el número y el código, que se leen con lupa en el original y se emborronan al fotocopiarlo.
+Todos los dibujos se calculan a partir de un texto. Por defecto es el nombre y el NIF de la tienda, de modo que cada tienda obtiene un papel distinto sin hacer nada. En *Ajustes → Tickets y facturas → Diseño de la factura* se puede probar otro dibujo, cambiar los colores o volver al papel liso.
 
-Para comprobar un documento, escribe su código en **Buscar**: la aplicación muestra la fecha, el total y el cliente que constan en el registro, para compararlos con el papel.
-
-Un papel impreso siempre se puede escanear e imitar a simple vista. Lo que no se puede fabricar es un código válido, así que la prueba de autenticidad es la comprobación del código, no el aspecto.
+Este papel no impide que alguien escanee una factura, pero hace inviable imitarla con una plantilla de procesador de textos.
 
 ## Datos y copias de seguridad
 

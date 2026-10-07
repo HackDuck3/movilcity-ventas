@@ -5,7 +5,6 @@ const { getSetting, setSetting } = require('../settings');
 const { route, fail } = require('../http');
 const { cents, euros, localDate, addDays, isDate, str } = require('../utils');
 const { validateMovement } = require('./movements');
-const { documentCode, normalizeCode } = require('../security');
 
 const isAdmin = (user) => user.role === 'admin';
 
@@ -16,15 +15,6 @@ const INVOICE_SELECT = `
   LEFT JOIN users u ON u.id = i.user_id
   LEFT JOIN invoices replaced ON replaced.id = i.replaces_id
   LEFT JOIN invoices replacement ON replacement.replaces_id = i.id AND replacement.voided = 0`;
-
-// The code covers what a forger would want to change: which document it is, its date, its total and its customer.
-const securityCodeFor = (invoice) =>
-  documentCode([invoice.kind, invoice.number, invoice.date, invoice.total, invoice.customer_nif]);
-
-// Documents issued before verification codes existed get theirs when the server starts.
-for (const invoice of all('SELECT * FROM invoices WHERE security_code IS NULL')) {
-  run('UPDATE invoices SET security_code = ? WHERE id = ?', securityCodeFor(invoice), invoice.id);
-}
 
 function toResponse(invoice) {
   return {
@@ -149,29 +139,13 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
   return tx(() => {
     const number = takeNextNumber(kind);
     const { id } = run(`INSERT INTO invoices (number, kind, date, customer_name, customer_nif, customer_address, customer_phone,
-                        items, subtotal, discount, total, notes, user_id, replaces_id, show_vat, security_code)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                        items, subtotal, discount, total, notes, user_id, replaces_id, show_vat) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       number, kind, date, customer.name, customer.nif, customer.address, customer.phone,
       JSON.stringify(items), subtotal, discount, total, str(body.notes, 500), user.id,
-      replacedTicket ? replacedTicket.id : null, showVat ? 1 : 0,
-      securityCodeFor({ kind, number, date, total, customer_nif: customer.nif }));
+      replacedTicket ? replacedTicket.id : null, showVat ? 1 : 0);
     if (!replacedTicket) linkToSale(id, body, { items, total, date }, user);
     return { ok: true, id, number };
   });
-});
-
-// Looks up the document a printed verification code belongs to, so the paper can be compared with the record.
-route('GET', '/api/verify/:code', 'user', ({ user, params }) => {
-  const code = normalizeCode(params.code);
-  const invoice = code && get('SELECT * FROM invoices WHERE security_code = ?', code);
-  if (!invoice) fail(404, 'Este código no corresponde a ningún documento emitido por la tienda');
-  return {
-    id: invoice.id, kind: invoice.kind, number: invoice.number, date: invoice.date,
-    total: euros(invoice.total), customer_name: invoice.customer_name, customer_nif: invoice.customer_nif,
-    items: JSON.parse(invoice.items).map(item => [item.description, item.detail].filter(Boolean).join(' ')),
-    voided: !!invoice.voided, security_code: invoice.security_code,
-    can_open: invoice.date >= oldestDateVisibleTo(user),
-  };
 });
 
 module.exports = { oldestDateVisibleTo };

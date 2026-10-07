@@ -18,7 +18,6 @@ src/
   defaults.js             Datos iniciales: productos, tipos de garantía y AJUSTES POR DEFECTO
   settings.js             Leer y guardar ajustes
   auth.js                 Contraseñas (scrypt), sesiones y límite de intentos de login
-  security.js             Códigos de verificación de los documentos (HMAC con una clave del servidor)
   http.js                 route(), fail() y HttpError
   utils.js                Dinero, fechas y limpieza de textos
   api.js                  Carga todos los archivos de routes/
@@ -45,7 +44,7 @@ public/
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
     repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
-    security-pattern.js   Banda, sello y microtexto de seguridad, dibujados a partir del código de verificación
+    security-pattern.js   Papel de seguridad: marco, emblema, banda, marca de agua y microtexto generados a partir de un texto
     purchase-contract.js  Contrato imprimible de compra de segunda mano (dos copias A4)
     delivery-note.js      Lee el texto de un albarán de proveedor (modelo, IMEIs y precio)
     movement-form.js      Formulario de venta/gasto
@@ -119,12 +118,12 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 - Al guardar, el servidor copia el **texto** de la garantía dentro de cada línea (`warranty_text`). Así, cambiar un texto en Ajustes no altera documentos ya emitidos.
 - Cada documento guarda `show_vat`: si se imprime el desglose de IVA o solo el total.
 
-### Código de verificación
+### Papel de seguridad
 
-- Al crear un ticket o una factura, `src/security.js` calcula un código con HMAC-SHA256 sobre tipo, número, fecha, total y NIF del cliente, y se guarda en `invoices.security_code`.
-- La clave del HMAC se genera sola la primera vez y vive en la tabla `settings` con una clave que no está en `DEFAULT_SETTINGS`, así que la API nunca la envía al navegador. Va dentro de la copia de la base de datos: al restaurar una copia, los códigos ya impresos siguen siendo válidos.
-- El navegador solo recibe el código. Con él, `security-pattern.js` dibuja la banda, el sello y el microtexto: mismo código, mismo dibujo.
-- `GET /api/verify/:código` devuelve el documento al que pertenece. La pantalla Buscar lo llama cuando lo escrito tiene forma de código.
+- `security-pattern.js` dibuja en SVG el marco, el emblema, la banda, la marca de agua y el microtexto. Todo sale de un generador de números aleatorios con semilla: el mismo texto da siempre el mismo dibujo.
+- La semilla es el ajuste `invoice.paper_seed`; si está vacío, el nombre y el NIF de la tienda (`paperSeed()` en `invoice.js`).
+- `invoice.paper_style` elige entre el papel de seguridad (`security`) y el liso (`plain`).
+- Los dibujos se guardan en memoria por semilla, porque el editor de facturas repinta la vista previa en cada tecla.
 
 ## Cómo está escrita una pantalla
 

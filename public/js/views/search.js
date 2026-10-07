@@ -1,5 +1,5 @@
 // One search box for tickets, invoices, repairs, stock and (for admins) movements.
-import { api, esc, icon, money, fmtDate, debounce, tryApi } from '../core.js';
+import { esc, icon, money, fmtDate, debounce, tryApi } from '../core.js';
 
 const MIN_QUERY_LENGTH = 2;
 const REPAIR_STAGES = { pending: 'En reparación', ready: 'Lista para recoger', collected: 'Recogida' };
@@ -55,50 +55,11 @@ function sectionHtml(section, results) {
     </div>`;
 }
 
-// ---- Verification codes
-const CODE_LENGTH = 12;
-const lettersAndDigits = (text) => text.replace(/[^0-9a-z]/gi, '');
-const couldBeCode = (query) => lettersAndDigits(query).length === CODE_LENGTH;
-// Typed with its dashes it is clearly meant as a code, so a miss deserves a warning and not just "nothing found".
-const isWrittenAsCode = (query) => /^\w{4}[-\s]\w{4}[-\s]\w{4}$/.test(query);
-
-function verifiedHtml(document) {
-  const kind = document.kind === 'ticket' ? 'Ticket' : 'Factura';
-  const url = `#/${document.kind === 'ticket' ? 'tickets' : 'facturas'}/${document.id}`;
-  return `
-    <div class="card card-pad verification-result ok" style="margin-bottom:14px">
-      <h3>${icon('check')} Código auténtico: ${kind} ${esc(document.number)}${document.voided ? ' <span class="neg">(ANULADO)</span>' : ''}</h3>
-      <p class="muted" style="margin:4px 0 10px">Compara estos datos con el papel. Si no coinciden, el papel ha sido modificado.</p>
-      <div class="settings-grid">
-        <div><span class="muted">Fecha</span><br><b>${fmtDate(document.date)}</b></div>
-        <div><span class="muted">Total</span><br><b>${money(document.total)}</b></div>
-        <div><span class="muted">Cliente</span><br><b>${esc(document.customer_name || '—')}${document.customer_nif ? ` · ${esc(document.customer_nif)}` : ''}</b></div>
-        <div><span class="muted">Concepto</span><br><b>${esc(document.items.join(', '))}</b></div>
-      </div>
-      ${document.can_open ? `<a class="btn" href="${url}" style="margin-top:12px">${icon('eye')} Abrir el documento y comparar el dibujo</a>` : ''}
-    </div>`;
-}
-
-const NOT_VERIFIED_HTML = `
-  <div class="card card-pad verification-result bad" style="margin-bottom:14px">
-    <h3>${icon('warn')} Este código no corresponde a ningún documento de la tienda</h3>
-    <p class="muted" style="margin:4px 0 0">Revisa que esté bien escrito. Si lo está, el documento no lo ha emitido esta tienda.</p>
-  </div>`;
-
-async function verificationHtml(query) {
-  if (!couldBeCode(query)) return '';
-  try {
-    return verifiedHtml(await api(`/verify/${encodeURIComponent(lettersAndDigits(query))}`));
-  } catch {
-    return isWrittenAsCode(query) ? NOT_VERIFIED_HTML : '';
-  }
-}
-
 export async function searchView(root, params) {
   root.innerHTML = `
-    <div class="page-head"><div><h1>Buscar</h1><div class="sub">Tickets, facturas, reparaciones, stock y movimientos en un solo sitio. También comprueba códigos de verificación.</div></div></div>
+    <div class="page-head"><div><h1>Buscar</h1><div class="sub">Tickets, facturas, reparaciones, stock y movimientos en un solo sitio.</div></div></div>
     <div class="card card-pad" style="margin-bottom:14px">
-      <input type="search" data-search placeholder="Nombre, teléfono, IMEI, modelo, número o código de verificación…" value="${esc(params.get('q') || '')}">
+      <input type="search" data-search placeholder="Nombre, teléfono, IMEI, modelo, número de ticket…" value="${esc(params.get('q') || '')}">
     </div>
     <div data-results></div>`;
 
@@ -111,9 +72,9 @@ export async function searchView(root, params) {
       resultsContainer.innerHTML = '<div class="empty">Escribe al menos 2 letras o números</div>';
       return;
     }
-    const [found, verification] = await Promise.all([tryApi(`/search?q=${encodeURIComponent(query)}`), verificationHtml(query)]);
+    const found = await tryApi(`/search?q=${encodeURIComponent(query)}`);
     if (!found || input.value.trim() !== query) return; // a newer search is already on its way
-    const html = verification + SECTIONS.map(section => sectionHtml(section, found[section.key] || [])).join('');
+    const html = SECTIONS.map(section => sectionHtml(section, found[section.key] || [])).join('');
     resultsContainer.innerHTML = html || '<div class="empty">No se ha encontrado nada</div>';
   }
 

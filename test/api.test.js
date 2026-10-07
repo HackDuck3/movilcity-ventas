@@ -144,20 +144,6 @@ test('tickets and invoices use separate numbering, warranties and the VAT switch
   assert.equal((await admin('GET', `/api/invoices/${invoice.data.id}`)).data.voided, 1);
 });
 
-test('every document carries a verification code that leads back to its record', async () => {
-  const created = await admin('POST', '/api/invoices', { kind: 'ticket', items: [{ description: 'Verified item', price: 33 }] });
-  const { security_code: code } = (await admin('GET', `/api/invoices/${created.data.id}`)).data;
-  assert.match(code, /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
-
-  const typedByHand = code.toLowerCase().replace(/-/g, ' ');
-  const verified = (await admin('GET', `/api/verify/${encodeURIComponent(typedByHand)}`)).data;
-  assert.deepEqual([verified.number, verified.total, verified.items[0]], [created.data.number, 33, 'Verified item']);
-
-  assert.equal((await admin('GET', '/api/verify/0000-0000-0000')).status, 404);
-  assert.equal((await admin('GET', '/api/verify/not-a-code')).status, 404);
-  assert.equal(JSON.stringify((await admin('GET', '/api/admin/settings')).data).includes('secret'), false);
-});
-
 test('an invoice can register its sale in the daily register', async () => {
   const sale = (await admin('GET', '/api/categories')).data.find(c => c.kind === 'sale');
   const before = (await admin('GET', '/api/day')).data.sales.length;

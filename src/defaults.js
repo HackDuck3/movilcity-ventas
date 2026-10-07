@@ -119,6 +119,8 @@ const DEFAULT_SETTINGS = {
     color_shop: '#6c63e6',
     color_title: '#283593',
     color_accent: '#e91e63',
+    paper_style: 'security', // 'security' (frame, watermark, emblem, microtext) | 'plain'
+    paper_seed: '',          // text the paper's drawings are generated from; empty = shop name and NIF
     ticket_format: 'ticket', // 'ticket' (thermal printer) | 'a4'
     paper_width: 58,         // thermal paper in mm: 58 or 80
     qr_url: '',              // printed as a QR code at the foot of tickets when set
