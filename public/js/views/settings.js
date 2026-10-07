@@ -744,6 +744,20 @@ function renderDataTools(body) {
 01/09/2026;gasto;Compra de móviles;mobile iphone 17;650,00;;</pre>
         <div data-import-result style="margin-top:10px"></div>
       </div>
+      <div class="card card-pad" style="grid-column:1/-1">
+        <h3>Empezar de cero</h3>
+        <p class="muted" style="margin-top:0">
+          Borra todo lo apuntado mientras probabas la aplicación: ventas y gastos, tickets y facturas, reparaciones, stock y compras
+          (con sus fotos de DNI). <b>Se conservan</b> los ajustes, los usuarios, los productos y los comunicados. La numeración vuelve a 1:
+          después revisa el próximo número de factura en <a href="#/ajustes?tab=facturas">Tickets y facturas</a>.
+          Antes de borrar se guarda una copia en <code>data/backups</code>.
+        </p>
+        <label class="check"><input type="checkbox" data-reset-files><span><b>Borrar también los archivos subidos a Archivos</b></span></label>
+        <div class="row" style="margin-top:8px">
+          <input type="text" data-reset-confirm placeholder="Escribe BORRAR para confirmar" style="width:auto;min-width:240px" autocomplete="off">
+          <button class="btn btn-danger" data-reset disabled>${icon('trash')} Borrar los datos</button>
+        </div>
+      </div>
     </div>`;
 
   const find = (selector) => body.querySelector(selector);
@@ -764,6 +778,16 @@ function renderDataTools(body) {
     find('[data-import-result]').innerHTML = `<div class="notice">Importados <b>${result.imported}</b> movimientos.${errors}</div>`;
     await refreshCategories();
   }
+
+  const resetWord = find('[data-reset-confirm]');
+  const resetButton = find('[data-reset]');
+  resetWord.addEventListener('input', () => { resetButton.disabled = resetWord.value.trim() !== 'BORRAR'; });
+  resetButton.addEventListener('click', async () => {
+    const done = await tryApi('/admin/reset', { method: 'POST', body: { confirm: resetWord.value.trim(), files: find('[data-reset-files]').checked } });
+    if (!done) return;
+    toast('Datos borrados. La aplicación empieza de cero.', 'ok');
+    setTimeout(() => location.reload(), 1200);
+  });
 
   on(body, 'change', '[data-export-from], [data-export-to]', updateExportLink);
   fileInput.addEventListener('change', () => { importButton.disabled = !fileInput.files.length; });

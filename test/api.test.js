@@ -369,6 +369,25 @@ test('shop files can be uploaded, downloaded and deleted', async () => {
   assert.equal((await admin('GET', '/api/admin/files')).data.total.n, 0);
 });
 
+test('starting over removes the records and keeps the set-up', async () => {
+  assert.equal((await admin('POST', '/api/admin/reset', { confirm: 'no' })).status, 400);
+  assert.equal((await admin('POST', '/api/admin/reset', { confirm: 'BORRAR' })).status, 200);
+
+  const day = (await admin('GET', '/api/day')).data;
+  assert.deepEqual([day.sales.length, day.expenses.length], [0, 0]);
+  for (const list of ['/api/invoices', '/api/repairs', '/api/stock', '/api/purchases']) {
+    assert.equal((await admin('GET', list)).data.length, 0, list);
+  }
+  const settings = (await admin('GET', '/api/me')).data.settings;
+  assert.deepEqual([settings.invoice.next_number, settings.invoice.ticket_next_number, settings.repairs.next_number], [1, 1, 1]);
+  assert.equal(settings.shop.name, 'Test Shop');
+  assert.equal((await admin('GET', '/api/notices')).data.length, 2);
+  assert.ok((await admin('GET', '/api/categories')).data.length > 10);
+
+  const ticket = await admin('POST', '/api/invoices', { kind: 'ticket', items: [{ description: 'After reset', price: 5 }] });
+  assert.equal(ticket.data.number, 'T-1');
+});
+
 test('state-changing requests need the app header', async () => {
   const res = await fetch(`${BASE}/api/logout`, { method: 'POST' });
   assert.equal(res.status, 403);

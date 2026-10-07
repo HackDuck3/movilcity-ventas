@@ -121,6 +121,7 @@ Todo se guarda en una carpeta de datos (`data/`, o el volumen `/data` en Docker 
 - *Ajustes → Datos y copias* descarga una copia de la base de datos. No incluye `files/` ni `id-documents/`.
 - En Umbrel, las copias de seguridad de la app incluyen la carpeta completa.
 - *Ajustes → Datos y copias* también exporta los movimientos a CSV e importa ventas y gastos desde un CSV con las columnas `fecha; categoria; importe` (y opcionalmente `tipo`, `beneficio`, `descripcion`, `metodo_pago`).
+- *Ajustes → Datos y copias → Empezar de cero* borra los registros hechos durante las pruebas (ventas, documentos, reparaciones, stock, compras) y conserva ajustes, usuarios, productos y comunicados. Antes guarda una copia en `backups/`.
 - Para restaurar: detén la aplicación, sustituye `ventas.db` por la copia, borra `ventas.db-wal` y `ventas.db-shm` si existen y arranca de nuevo.
 
 La carpeta de datos está excluida del repositorio por `.gitignore`.

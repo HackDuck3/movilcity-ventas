@@ -54,13 +54,13 @@ const LAPTOP_REPAIR_FAULTS = [
 ];
 
 const REPAIR_CONDITIONS = [
-  '1. En caso de pérdida o extravío del presente documento, solo podrá ser retirado el terminal objeto de la reparación previa acreditación de la identidad del titular, mediante la exhibición del DNI/NIF aportado en la presente ficha de reparación.',
-  '2. En ningún caso se devolverá el importe de la liberación o reparación efectuada si el terminal es bloqueado por la compañía telefónica.',
+  '1. En caso de pérdida o extravío del presente documento, solo podrá ser retirado el equipo objeto de la reparación previa acreditación de la identidad del titular, mediante la exhibición del DNI/NIF aportado en la presente ficha de reparación.',
+  '2. En ningún caso se devolverá el importe de la liberación o reparación efectuada si el equipo es bloqueado por la compañía telefónica.',
   '3. Los tiempos de entrega en los códigos de liberación por IMEI son orientativos y pueden sufrir retrasos debido a la dependencia de terceros, no siendo posible su anulación una vez solicitados.',
-  '4. La persona que realiza la entrega del móvil para su reparación declara bajo su responsabilidad que es el legítimo propietario del mismo y que no existe impedimento alguno por parte de persona física o jurídica alguna para su manipulación interna, incluido el posible desbloqueo o liberación.',
+  '4. La persona que realiza la entrega del equipo para su reparación declara bajo su responsabilidad que es el legítimo propietario del mismo y que no existe impedimento alguno por parte de persona física o jurídica alguna para su manipulación interna, incluido el posible desbloqueo o liberación.',
   '5. Nuestra empresa no se responsabiliza de la pérdida o deterioro de la información contenida en cualquier tipo de soporte; por ello se recomienda encarecidamente que realice una copia de seguridad de aquellos datos importantes que desee.',
   '6. Extraiga y conserve usted las tarjetas SIM y de almacenamiento.',
-  'Si en tres meses el terminal no se recoge, procederemos a su retirada.',
+  'Si en tres meses el equipo no se recoge, procederemos a su retirada.',
 ].join('\n');
 
 // Draft clauses for buying a used phone from a private seller. Editable in Settings; have an adviser review them.
@@ -198,7 +198,7 @@ const DEFAULT_SETTINGS = {
     next_number: 1,
     faults: REPAIR_FAULTS,
     laptop_faults: LAPTOP_REPAIR_FAULTS,
-    disclaimer: 'No nos hacemos responsables de cualquier otro fallo que tenga el móvil, solo de nuestra reparación.',
+    disclaimer: 'No nos hacemos responsables de cualquier otro fallo que tenga el equipo, solo de nuestra reparación.',
     conditions: REPAIR_CONDITIONS,
     print_format: 'a4', // 'a4' (landscape sheet with two A5 copies) | 'ticket' (thermal printer)
     reminder_days: 15, // a pending repair older than this is listed as forgotten

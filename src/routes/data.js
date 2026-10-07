@@ -1,7 +1,9 @@
 'use strict';
 // CSV export/import and database download. CSV uses ';' and decimal commas so Spanish Excel opens it directly.
 const fs = require('node:fs');
-const { all, get, run, tx, backupToTemp } = require('../db');
+const path = require('node:path');
+const { all, get, run, tx, backupToTemp, backupBeforeReset, FILES_DIR, ID_DOCUMENTS_DIR } = require('../db');
+const { getSetting, setSetting } = require('../settings');
 const { route, fail } = require('../http');
 const { cents, euros, pad, localDate, str, dateRange } = require('../utils');
 const { MOVEMENT_SELECT } = require('./movements');
@@ -126,4 +128,33 @@ route('GET', '/api/admin/backup', 'admin', ({ res }) => {
   const content = fs.readFileSync(file);
   fs.unlinkSync(file);
   res.sendRaw(200, content, 'application/octet-stream', `ventas-backup-${localDate()}.db`);
+});
+
+// ---- Starting over
+// Removes everything recorded while trying the app out and keeps what was set up: users, products,
+// settings and notices. A snapshot is saved first, next to the daily backups.
+const RECORD_TABLES = ['purchases', 'devices', 'repairs', 'movements', 'invoices']; // in an order foreign keys allow
+const RESET_WORD = 'BORRAR';
+
+function emptyFolder(folder) {
+  for (const name of fs.readdirSync(folder)) fs.rmSync(path.join(folder, name), { force: true });
+}
+
+route('POST', '/api/admin/reset', 'admin', ({ body }) => {
+  if (body.confirm !== RESET_WORD) fail(400, `Escribe ${RESET_WORD} para confirmar`);
+  const tables = body.files ? [...RECORD_TABLES, 'files'] : RECORD_TABLES;
+  backupBeforeReset();
+
+  tx(() => {
+    for (const table of tables) {
+      run(`DELETE FROM ${table}`);
+      run('DELETE FROM sqlite_sequence WHERE name = ?', table);
+    }
+    setSetting('invoice', { ...getSetting('invoice'), next_number: 1, ticket_next_number: 1 });
+    setSetting('repairs', { ...getSetting('repairs'), next_number: 1 });
+    setSetting('purchases', { ...getSetting('purchases'), next_number: 1 });
+  });
+  emptyFolder(ID_DOCUMENTS_DIR);
+  if (body.files) emptyFolder(FILES_DIR);
+  return { ok: true };
 });

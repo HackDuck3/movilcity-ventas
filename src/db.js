@@ -233,6 +233,14 @@ function tx(work) {
   }
 }
 
+const REPAIR_REWORDING = [
+  ['fallo que tenga el móvil', 'fallo que tenga el equipo'],
+  ['retirado el terminal objeto', 'retirado el equipo objeto'],
+  ['si el terminal es bloqueado', 'si el equipo es bloqueado'],
+  ['la entrega del móvil para su reparación', 'la entrega del equipo para su reparación'],
+  ['el terminal no se recoge', 'el equipo no se recoge'],
+];
+
 // Brings databases created by older versions up to the schema above.
 function migrate() {
   const hasColumn = (table, column) => all(`PRAGMA table_info(${table})`).some(c => c.name === column);
@@ -249,6 +257,16 @@ function migrate() {
     tx(() => all("SELECT id, name FROM categories WHERE kind = 'sale'").forEach(category =>
       run('UPDATE categories SET warranty = ? WHERE id = ?', defaultWarrantyFor(category.name), category.id)));
   }
+  // The repair receipt is also used for laptops, so its texts say "equipo" instead of "móvil" or "terminal".
+  // Only the original sentences are touched: wording the shop rewrote stays as it is.
+  once('repair_texts_cover_any_device', () => {
+    const row = get("SELECT value FROM settings WHERE key = 'repairs'");
+    if (!row) return;
+    const config = JSON.parse(row.value);
+    const reword = (text) => REPAIR_REWORDING.reduce((result, [before, after]) => result.split(before).join(after), String(text || ''));
+    run("UPDATE settings SET value = ? WHERE key = 'repairs'",
+      JSON.stringify({ ...config, disclaimer: reword(config.disclaimer), conditions: reword(config.conditions) }));
+  });
   once('starting_notices', () => {
     for (const notice of STARTING_NOTICES) {
       run('INSERT INTO notices (title, subtitle, body) VALUES (?,?,?)', notice.title, notice.subtitle, notice.body);
@@ -306,6 +324,14 @@ function backup() {
   return file;
 }
 
+// Kept with the daily backups, so a reset can be undone by restoring this file.
+function backupBeforeReset() {
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  return snapshotTo(path.join(BACKUP_DIR, `ventas-antes-de-borrar-${Date.now()}.db`));
+}
+
 const backupToTemp = () => snapshotTo(path.join(DATA_DIR, `export-${Date.now()}.db`));
 
-module.exports = { db, all, get, run, tx, backup, backupToTemp, DB_PATH, DATA_DIR, FILES_DIR, ID_DOCUMENTS_DIR };
+module.exports = {
+  db, all, get, run, tx, backup, backupToTemp, backupBeforeReset, DB_PATH, DATA_DIR, FILES_DIR, ID_DOCUMENTS_DIR,
+};

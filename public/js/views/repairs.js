@@ -306,7 +306,7 @@ async function renderEditor(root, id) {
         <div class="settings-grid">
           ${textField('customer_name', 'Nombre y apellidos')}
           ${textField('customer_phone', 'Teléfono')}
-          ${textField('customer_nif', 'NIF', 'para recoger el terminal si pierde el resguardo')}
+          ${textField('customer_nif', 'NIF', 'para recoger el equipo si pierde el resguardo')}
         </div>
       </div>
       <div>
