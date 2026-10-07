@@ -1,6 +1,7 @@
 // Printable documents: A4 invoice and thermal ticket (58 or 80 mm paper).
 import { state, esc, money, fmtDate, fmtTime } from './core.js';
 import { qrSvg } from './qr.js';
+import { guillocheBand, rosetteSeal, microtext } from './security-pattern.js';
 
 const paperWidth = (settings) => (Number(settings.invoice.paper_width) === 80 ? 80 : 58);
 
@@ -96,9 +97,34 @@ function conditionsBlock(inv, cfg) {
   </div>`;
 }
 
+// A document still being written has no verification code yet, so it shows a placeholder pattern.
+const DRAFT_SEED = 'BORRADOR';
+
+// Band under the header: two lines of microtext around a guilloche pattern unique to this document.
+function securityBand(inv, shop, title) {
+  const lettering = [shop.name, title, inv.number, inv.security_code].filter(Boolean).join(' · ');
+  return `<div class="doc-security">
+    ${microtext(lettering)}
+    ${guillocheBand(inv.security_code || DRAFT_SEED)}
+    ${microtext(lettering)}
+  </div>`;
+}
+
+function verificationBlock(inv) {
+  return `<section class="doc-verification">
+    ${rosetteSeal(inv.security_code || DRAFT_SEED)}
+    <div>
+      <h4>Código de verificación</h4>
+      <div class="verification-code">${inv.security_code ? esc(inv.security_code) : 'Se asigna al guardar'}</div>
+      <div class="verification-note">El dibujo de seguridad y este código son únicos de este documento y constan en el registro de la tienda.</div>
+    </div>
+  </section>`;
+}
+
 export function invoiceA4(inv, settings) {
   const { shop, invoice: cfg } = settings;
   const customer = customerLines(inv);
+  const title = documentTitle(inv, cfg);
   const colors = `--doc-shop:${esc(cfg.color_shop)};--doc-title:${esc(cfg.color_title)};--doc-accent:${esc(cfg.color_accent)}`;
 
   return `<div class="invoice-doc" style="${colors}">
@@ -110,11 +136,12 @@ export function invoiceA4(inv, settings) {
         <div class="shop-lines">${shopLines(shop)}</div>
       </div>
       <div class="doc-id">
-        <div class="doc-title">${esc(documentTitle(inv, cfg))}</div>
+        <div class="doc-title">${esc(title)}</div>
         <div class="doc-number">N.º ${esc(inv.number || '—')}</div>
         <div class="doc-date">${fmtDate(inv.date)}</div>
       </div>
     </header>
+    ${securityBand(inv, shop, title)}
     ${customer ? `<section class="doc-customer"><h4>Cliente</h4>${customer}</section>` : ''}
     <table class="doc-items">
       <thead><tr><th>Descripción</th><th class="r">Cant.</th><th class="r">Precio</th><th class="r">Importe</th></tr></thead>
@@ -124,7 +151,10 @@ export function invoiceA4(inv, settings) {
       ${conditionsBlock(inv, cfg)}
       ${totalsBlock(inv, cfg)}
     </div>
-    ${cfg.footer ? `<footer class="doc-footer">${esc(cfg.footer)}</footer>` : ''}
+    <div class="doc-end">
+      ${verificationBlock(inv)}
+      ${cfg.footer ? `<footer class="doc-footer">${esc(cfg.footer)}</footer>` : ''}
+    </div>
   </div>`;
 }
 
@@ -158,6 +188,7 @@ export function ticket80(inv, settings) {
     ${cfg.footer ? `<div class="c">${esc(cfg.footer)}</div>` : ''}
     <div class="c thanks">¡Gracias por su compra!</div>
     ${qrBlock(cfg)}
+    ${inv.security_code ? `<div class="c small verification">Verificación: ${esc(inv.security_code)}</div>` : ''}
     ${inv.voided ? '<div class="c big">*** ANULADO ***</div>' : ''}
   </div>`;
 }

@@ -19,7 +19,7 @@ function matchAny(columns, query) {
 }
 
 function searchInvoices(query, user) {
-  const match = matchAny(['number', 'customer_name', 'customer_nif', 'customer_phone', 'items'], query);
+  const match = matchAny(['number', 'customer_name', 'customer_nif', 'customer_phone', 'items', 'security_code'], query);
   return all(`SELECT id, kind, number, date, customer_name, items, total, voided FROM invoices
               WHERE ${match.condition} AND date >= ? ORDER BY id DESC LIMIT ?`,
     ...match.values, oldestDateVisibleTo(user), RESULTS_PER_SECTION)

@@ -87,6 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_mov_type_date ON movements(type, date);
 -- kind 'factura' is a full invoice, 'ticket' a simplified one.
 -- items is JSON: [{ description, detail, qty, price, warranty, warranty_text }].
 -- replaces_id links a full invoice to the ticket it replaces.
+-- security_code is the verification code printed on the document (see src/security.js).
 CREATE TABLE IF NOT EXISTS invoices (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   number           TEXT NOT NULL,
@@ -105,7 +106,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   created_at       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   voided           INTEGER NOT NULL DEFAULT 0,
   replaces_id      INTEGER,
-  show_vat         INTEGER
+  show_vat         INTEGER,
+  security_code    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_inv_kind ON invoices(kind, id);
 
@@ -224,6 +226,7 @@ function migrate() {
 
   if (!hasColumn('invoices', 'replaces_id')) db.exec('ALTER TABLE invoices ADD COLUMN replaces_id INTEGER');
   if (!hasColumn('invoices', 'show_vat')) db.exec('ALTER TABLE invoices ADD COLUMN show_vat INTEGER');
+  if (!hasColumn('invoices', 'security_code')) db.exec('ALTER TABLE invoices ADD COLUMN security_code TEXT');
   if (!hasColumn('repairs', 'movement_id')) db.exec('ALTER TABLE repairs ADD COLUMN movement_id INTEGER');
   for (const [column, type] of [['ready_at', 'TEXT'], ['due_on', 'TEXT'], ['deposit', 'INTEGER'], ['deposit_movement_id', 'INTEGER']]) {
     if (!hasColumn('repairs', column)) db.exec(`ALTER TABLE repairs ADD COLUMN ${column} ${type}`);
