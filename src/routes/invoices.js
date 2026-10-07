@@ -148,6 +148,8 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
   });
 });
 
+module.exports = { oldestDateVisibleTo };
+
 // Voiding keeps the document and its number; numbers are never reused.
 route('POST', '/api/invoices/:id/void', 'admin', ({ params }) => {
   run('UPDATE invoices SET voided = 1 WHERE id = ?', Number(params.id));

@@ -1,12 +1,17 @@
 // Repair receipts: the slip the customer keeps while the shop has their device.
 import {
-  api, state, esc, icon, money, fmtDate, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, redrawOnResize, tryApi,
+  api, state, esc, icon, money, fmtDate, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, redrawOnResize, reloadView, tryApi,
 } from '../core.js';
 import { repairReceipt, repairSheet } from '../repair-receipt.js';
 import { printDocument } from '../invoice.js';
 
 const SECTION = '#/reparaciones';
-const FILTERS = [['pending', 'Pendientes'], ['forgotten', 'Olvidadas'], ['collected', 'Recogidas'], ['', 'Todas']];
+const FILTERS = [['pending', 'En reparación'], ['ready', 'Listas para recoger'], ['forgotten', 'Olvidadas'], ['collected', 'Recogidas'], ['', 'Todas']];
+const STAGE_BADGES = {
+  pending: '<span class="status-badge">En reparación</span>',
+  ready: '<span class="status-badge ready">Lista para recoger</span>',
+  collected: '<span class="status-badge done">Recogida</span>',
+};
 const PATTERN_DOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export function repairsView(root, params, sub) {
@@ -31,10 +36,7 @@ const deviceName = (repair) => [repair.brand, repair.model].filter(Boolean).join
 const workSummary = (repair) => [...repair.faults, repair.notes].filter(Boolean).join(', ');
 
 function statusBadge(repair) {
-  if (repair.voided) return '<span class="neg">Anulada</span>';
-  return repair.status === 'collected'
-    ? '<span class="status-badge done">Recogida</span>'
-    : '<span class="status-badge">Pendiente</span>';
+  return repair.voided ? '<span class="neg">Anulada</span>' : STAGE_BADGES[repair.stage];
 }
 
 // Link that opens WhatsApp with the "ready to collect" message written. Empty when there is no usable phone.
@@ -59,7 +61,7 @@ function repairsTable(repairs) {
   const row = (repair) => `
     <tr class="clickable ${repair.voided ? 'deleted' : ''}" data-id="${repair.id}">
       <td><b>${esc(repair.number)}</b></td>
-      <td class="num">${fmtDate(repair.date)}</td>
+      <td class="num">${fmtDate(repair.date)}${repair.due_on ? `<div class="desc">entrega ${fmtDate(repair.due_on)}</div>` : ''}</td>
       <td>${esc(repair.customer_name || '—')}<div class="desc">${esc(repair.customer_phone)}</div></td>
       <td>${esc(deviceName(repair))}<div class="desc">${esc(workSummary(repair))}</div></td>
       <td class="r num"><b>${repair.amount == null ? '—' : money(repair.amount)}</b></td>
@@ -131,7 +133,8 @@ async function renderDetail(root, id) {
     root.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
     return;
   }
-  const isCollected = repair.status === 'collected';
+  const isCollected = repair.stage === 'collected';
+  const isReady = repair.stage === 'ready';
   const canMakeTicket = state.settings.modules.invoices && !repair.voided;
   // Opens the ticket editor with the repair as its first line; its warranty is proposed from the product name.
   const ticketUrl = `#/tickets/nueva?desc=${encodeURIComponent(`Reparacion ${deviceName(repair)}`)}${repair.amount == null ? '' : `&precio=${repair.amount}`}`;
@@ -154,7 +157,8 @@ async function renderDetail(root, id) {
           ${icon('message')} Avisar por WhatsApp
         </a>` : ''}
       ${repair.voided ? '' : `
-        <button class="btn" data-toggle-collected>${icon(isCollected ? 'undo' : 'check')} ${isCollected ? 'Marcar como pendiente' : 'Marcar como recogida'}</button>
+        ${isCollected ? '' : `<button class="btn" data-set-stage="${isReady ? 'pending' : 'ready'}">${isReady ? 'Volver a "en reparación"' : `${icon('check')} Ya está reparada`}</button>`}
+        <button class="btn" data-toggle-collected>${icon(isCollected ? 'undo' : 'check')} ${isCollected ? 'Deshacer recogida' : 'Marcar como recogida'}</button>
         <a class="btn" href="${SECTION}/${repair.id}?editar=1">${icon('edit')} Editar</a>`}
       ${canMakeTicket ? `<a class="btn" href="${ticketUrl}">${icon('receipt')} Hacer ticket</a>` : ''}
       ${isAdmin() && !repair.voided ? '<button class="btn btn-danger" data-void>Anular</button>' : ''}
@@ -188,21 +192,23 @@ async function renderDetail(root, id) {
     renderPreview();
   });
   on(root, 'click', '[data-print]', () => printReceipt(repair, format));
+  on(root, 'click', '[data-set-stage]', (button) => setStatus(button.dataset.setStage));
+
   async function setStatus(status, register) {
     const saved = await tryApi(`/repairs/${id}/status`, { method: 'POST', body: { status, register } });
-    if (saved) renderDetail(root, id);
+    if (saved) reloadView();
     return !!saved;
   }
 
   on(root, 'click', '[data-toggle-collected]', () => {
-    if (isCollected) return setStatus('pending');
+    if (isCollected) return setStatus(repair.ready_at ? 'ready' : 'pending');
     // A repair is charged in the register only once, even if it is reopened later.
     if (repair.movement_id) return setStatus('collected');
     openCollectDialog(repair, setStatus);
   });
   on(root, 'click', '[data-void]', async () => {
     const confirmed = await confirmDialog('¿Anular esta reparación? Seguirá guardada pero marcada como ANULADA.', { okText: 'Anular', danger: true });
-    if (confirmed && await tryApi(`/repairs/${id}/void`, { method: 'POST' })) renderDetail(root, id);
+    if (confirmed && await tryApi(`/repairs/${id}/void`, { method: 'POST' })) reloadView();
   });
 }
 
@@ -212,6 +218,7 @@ function openCollectDialog(repair, setStatus) {
   const saleCategories = state.categories.filter(category => category.kind === 'sale' && category.active);
   const repairCategory = saleCategories.find(category => category.name.toLowerCase().startsWith('reparaci'));
   const asksPaymentMethod = modules.payment_methods && sales.ask_payment_method;
+  const deposit = repair.deposit || 0;
 
   modal({
     title: `Entregar reparación ${repair.number}`,
@@ -221,10 +228,11 @@ function openCollectDialog(repair, setStatus) {
           <input type="checkbox" name="register" checked>
           <span><b>Cobrar ahora y registrar la venta en caja</b><span class="muted">Desmárcalo si ya estaba cobrada o apuntada.</span></span>
         </label>
-        <label class="field">Importe cobrado (€)
-          <input class="money" name="amount" inputmode="decimal" placeholder="0,00" value="${repair.amount == null ? '' : moneyInput(repair.amount)}">
+        <label class="field">${deposit ? 'Resto a cobrar (€)' : 'Importe cobrado (€)'}
+          ${deposit ? `<span class="hint">ya dejó ${money(deposit)} de señal</span>` : ''}
+          <input class="money" name="amount" inputmode="decimal" placeholder="0,00" value="${repair.amount == null ? '' : moneyInput(repair.amount - deposit)}">
         </label>
-        <label class="field">Beneficio (€) <span class="hint">importe menos el coste de las piezas</span>
+        <label class="field">Beneficio (€) <span class="hint">de toda la reparación: importe total menos piezas</span>
           <input class="money" name="profit" inputmode="decimal" placeholder="0,00">
         </label>
         <label class="field">Producto
@@ -247,7 +255,7 @@ function openCollectDialog(repair, setStatus) {
         }
         const amount = parseMoney(fields.amount.value);
         const profit = parseMoney(fields.profit.value);
-        if (!Number.isFinite(amount) || amount <= 0) return toast('Indica el importe cobrado', 'err');
+        if (!Number.isFinite(amount) || amount < 0 || (amount === 0 && !deposit)) return toast('Indica el importe cobrado', 'err');
         if (!Number.isFinite(profit)) return toast('Indica el beneficio (o desmarca "Cobrar ahora")', 'err');
         const register = {
           amount, profit,
@@ -270,8 +278,12 @@ async function renderEditor(root, id) {
   const config = state.settings.repairs;
   const repair = existing || {
     customer_name: '', customer_nif: '', customer_phone: '', brand: '', model: '', imei: '', carrier: '',
-    unlock_code: '', pattern: '', faults: [], notes: '', condition: '', amount: null,
+    unlock_code: '', pattern: '', faults: [], notes: '', condition: '', amount: null, deposit: null, due_on: '',
   };
+  // A deposit already in the cash register cannot be changed from here.
+  const depositIsRegistered = !!repair.deposit_movement_id;
+  const { sales, modules } = state.settings;
+  const repairCategory = state.categories.find(category => category.kind === 'sale' && category.active && category.name.toLowerCase().startsWith('reparaci'));
   let pattern = repair.pattern ? repair.pattern.split('-').map(Number) : [];
   // Keeps faults saved on this repair even if they were later removed from settings.
   const faultNames = [...new Set([...config.faults, ...repair.faults])];
@@ -330,6 +342,19 @@ async function renderEditor(root, id) {
           <label class="field">Importe (€) <span class="hint">déjalo vacío si aún no hay presupuesto</span>
             <input class="money" name="amount" inputmode="decimal" placeholder="0,00" value="${repair.amount == null ? '' : moneyInput(repair.amount)}">
           </label>
+          <label class="field">Entrega prevista <span class="hint">opcional</span>
+            <input type="date" name="due_on" value="${esc(repair.due_on || '')}">
+          </label>
+          <label class="field">Señal / pago a cuenta (€) <span class="hint">${depositIsRegistered ? 'ya apuntada en caja' : 'lo que deja pagado ahora'}</span>
+            <input class="money" name="deposit" inputmode="decimal" placeholder="0,00" ${depositIsRegistered ? 'disabled' : ''}
+                   value="${repair.deposit == null ? '' : moneyInput(repair.deposit)}">
+          </label>
+          ${existing || !repairCategory ? '' : `
+            <div class="field hidden" data-deposit-options>
+              <label class="check"><input type="checkbox" name="register_deposit" checked><span><b>Apuntar la señal en la caja de hoy</b></span></label>
+              ${modules.payment_methods && sales.ask_payment_method ? `
+                <select name="deposit_payment">${sales.payment_methods.map(method => `<option>${esc(method)}</option>`).join('')}</select>` : ''}
+            </div>`}
         </div>
       </div>
       <div class="row">
@@ -349,8 +374,15 @@ async function renderEditor(root, id) {
 
   function readForm() {
     const amount = parseMoney(form.elements.amount.value);
+    const deposit = parseMoney(form.elements.deposit.value);
     const text = (name) => form.elements[name].value;
+    const registersDeposit = form.elements.register_deposit?.checked && deposit > 0;
     return {
+      due_on: text('due_on'),
+      deposit: Number.isFinite(deposit) ? deposit : null,
+      register_deposit: registersDeposit
+        ? { category_id: repairCategory.id, payment_method: form.elements.deposit_payment?.value || '' }
+        : undefined,
       customer_name: text('customer_name'), customer_nif: text('customer_nif'), customer_phone: text('customer_phone'),
       brand: text('brand'), model: text('model'), imei: text('imei'), carrier: text('carrier'),
       unlock_code: text('unlock_code'), condition: text('condition'), notes: text('notes'),
@@ -381,6 +413,10 @@ async function renderEditor(root, id) {
     }
   }
 
+  form.elements.deposit.addEventListener('input', () => {
+    const options = root.querySelector('[data-deposit-options]');
+    if (options) options.classList.toggle('hidden', !(parseMoney(form.elements.deposit.value) > 0));
+  });
   on(root, 'click', '[data-dot]', (button) => {
     const dot = Number(button.dataset.dot);
     if (!pattern.includes(dot)) pattern.push(dot);

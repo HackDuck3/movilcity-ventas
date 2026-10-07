@@ -85,6 +85,7 @@ const P = {
   swap: '<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
   wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/>',
   check: '<path d="M20 6L9 17l-5-5"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
   message: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1 1 21 11.5z"/>',
   warn: '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
@@ -157,6 +158,12 @@ export function on(root, type, selector, handler) {
     const element = event.target.closest(selector);
     if (element && root.contains(element)) handler(element, event);
   });
+}
+
+// Draws the current screen again from scratch. The router gives it a fresh container,
+// so the listeners of the old one are dropped instead of piling up.
+export function reloadView() {
+  window.dispatchEvent(new Event('hashchange'));
 }
 
 // Redraws when the element changes size and stops by itself once the element leaves the page.

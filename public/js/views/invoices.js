@@ -1,7 +1,7 @@
 // Tickets (simplified invoices) and full invoices: two sections, each with its own number series.
 import {
   api, state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, moneyInput,
-  confirmDialog, debounce, on, redrawOnResize, tryApi,
+  confirmDialog, debounce, on, redrawOnResize, reloadView, tryApi,
 } from '../core.js';
 import { invoiceA4, ticket80, printDocument } from '../invoice.js';
 
@@ -171,7 +171,7 @@ async function renderDetail(root, id) {
     if (!confirmed) return;
     if (!(await tryApi(`/invoices/${id}/void`, { method: 'POST' }))) return;
     toast('Anulado');
-    renderDetail(root, id);
+    reloadView();
   }
 
   on(root, 'click', '[data-format]', (button) => {

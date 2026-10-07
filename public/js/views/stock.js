@@ -2,6 +2,7 @@
 import {
   state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, tryApi,
 } from '../core.js';
+import { parseDeliveryNote } from '../delivery-note.js';
 
 const CONDITIONS = { new: 'Nuevo', used: 'Segunda mano' };
 // Warranty proposed on the ticket for each condition; names must match Settings → Tickets y facturas.
@@ -66,7 +67,9 @@ export async function stockView(root) {
     <div class="page-head">
       <div><h1>Stock de móviles</h1><div class="sub">Al vender un móvil, el beneficio y el IMEI se rellenan solos</div></div>
       <span class="spacer"></span>
-      ${isAdmin() ? `<button class="btn btn-primary" data-add>${icon('plus')} Añadir móvil</button>` : ''}
+      ${isAdmin() ? `
+        <button class="btn" data-add-delivery-note>${icon('file')} Añadir albarán</button>
+        <button class="btn btn-primary" data-add>${icon('plus')} Añadir móvil</button>` : ''}
     </div>
     <div class="card card-pad" style="margin-bottom:14px">
       <div class="row" style="gap:10px">
@@ -139,6 +142,89 @@ export async function stockView(root) {
             : await tryApi('/admin/stock', { method: 'POST', body });
           if (!saved) return;
           toast('Móvil guardado', 'ok');
+          close();
+          load();
+        };
+      },
+    });
+  }
+
+  // Paste the supplier's delivery note, check the table it produces and add every phone at once.
+  function openDeliveryNoteDialog() {
+    let rows = [];
+    const rowHtml = (row, index) => `
+      <tr data-row="${index}">
+        <td><input type="text" data-field="brand" value="${esc(row.brand)}" style="width:100px"></td>
+        <td><input type="text" data-field="model" value="${esc(row.model)}" style="min-width:200px"></td>
+        <td><input type="text" data-field="imei" value="${esc(row.imei)}" inputmode="numeric" style="width:160px"></td>
+        <td><input type="text" data-field="cost" class="num" inputmode="decimal" value="${row.cost == null ? '' : moneyInput(row.cost)}" style="width:90px"></td>
+        <td><button type="button" class="btn btn-ghost btn-icon" data-remove-row title="Quitar">${icon('trash')}</button></td>
+      </tr>`;
+
+    modal({
+      title: 'Añadir un albarán al stock',
+      wide: true,
+      body: `
+        <div class="notice" style="margin-bottom:12px">
+          Pega el texto del albarán. Desde una foto: en el móvil mantén pulsado sobre el texto de la foto, elige <b>Copiar todo</b> y pégalo aquí.
+          También puedes escribirlo: modelo, IMEIs y precio por unidad con €.
+        </div>
+        <textarea data-note-text rows="6" placeholder="2 SAMSUNG GALAXY A17 5G BLACK 351158948517330, 351158948536520. 162€ 324€"></textarea>
+        <div class="row" style="margin:10px 0"><button type="button" class="btn" data-read-note>Leer albarán</button><span class="muted" data-read-summary></span></div>
+        <div class="table-wrap" data-note-rows></div>
+        <form data-note-form class="settings-grid" style="margin-top:12px">
+          <label class="field">Estado
+            <select name="condition">${Object.entries(CONDITIONS).map(([key, label]) => `<option value="${key}">${label}</option>`).join('')}</select>
+          </label>
+          <label class="field">Fecha de compra<input type="date" name="purchased_on" value="${today()}"></label>
+          <label class="field wide">Notas <span class="hint">proveedor y número de albarán</span><input type="text" name="notes"></label>
+        </form>`,
+      foot: `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" data-ok disabled>Añadir al stock</button>`,
+      onMount: (dialog, close) => {
+        const find = (selector) => dialog.querySelector(selector);
+        const okButton = find('[data-ok]');
+
+        function renderRows() {
+          okButton.disabled = !rows.length;
+          okButton.textContent = rows.length ? `Añadir ${rows.length} móvil(es) al stock` : 'Añadir al stock';
+          if (!rows.length) {
+            find('[data-note-rows]').innerHTML = '';
+            return;
+          }
+          const total = rows.reduce((sum, row) => sum + (parseMoney(row.cost) || 0), 0);
+          find('[data-read-summary]').textContent = `${rows.length} móvil(es) · ${money(total)} en total. Revisa la tabla antes de añadir.`;
+          find('[data-note-rows]').innerHTML = `
+            <table class="t">
+              <thead><tr><th>Marca</th><th>Modelo</th><th>IMEI</th><th>Coste (€)</th><th></th></tr></thead>
+              <tbody>${rows.map(rowHtml).join('')}</tbody>
+            </table>`;
+        }
+
+        on(dialog, 'click', '[data-read-note]', () => {
+          rows = parseDeliveryNote(find('[data-note-text]').value);
+          if (!rows.length) toast('No he encontrado ningún IMEI (15 cifras) en el texto', 'err');
+          renderRows();
+        });
+        on(dialog, 'input', '[data-field]', (input) => {
+          rows[Number(input.closest('[data-row]').dataset.row)][input.dataset.field] = input.value;
+        });
+        on(dialog, 'click', '[data-remove-row]', (button) => {
+          rows.splice(Number(button.closest('[data-row]').dataset.row), 1);
+          renderRows();
+        });
+        okButton.onclick = async () => {
+          const common = find('[data-note-form]').elements;
+          const devices = rows.map(row => {
+            const cost = parseMoney(row.cost);
+            return {
+              brand: row.brand, model: row.model, imei: row.imei,
+              cost: Number.isFinite(cost) ? cost : null,
+              condition: common.condition.value, purchased_on: common.purchased_on.value, notes: common.notes.value,
+            };
+          });
+          const saved = await tryApi('/admin/stock/bulk', { method: 'POST', body: { devices } });
+          if (!saved) return;
+          toast(`${saved.added} móvil(es) añadidos al stock`, 'ok');
           close();
           load();
         };
@@ -222,6 +308,7 @@ export async function stockView(root) {
     load();
   });
   on(root, 'click', '[data-add]', () => openDeviceDialog(null));
+  on(root, 'click', '[data-add-delivery-note]', openDeliveryNoteDialog);
   on(root, 'click', '[data-edit]', (button) => openDeviceDialog(findDevice(button.dataset.edit)));
   on(root, 'click', '[data-sell]', (button) => openSellDialog(findDevice(button.dataset.sell)));
   on(root, 'click', '[data-delete]', (button) => deleteDevice(findDevice(button.dataset.delete)));

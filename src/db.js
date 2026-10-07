@@ -109,6 +109,8 @@ CREATE INDEX IF NOT EXISTS idx_inv_kind ON invoices(kind, id);
 
 -- Repair receipts: the slip the customer keeps while the shop has their device.
 -- faults is a JSON array of names; pattern is the unlock pattern as dot numbers, e.g. '1-4-7-8'.
+-- A pending repair with ready_at set is repaired and waiting for the customer.
+-- deposit is what the customer paid in advance; deposit_movement_id is that payment in the register.
 CREATE TABLE IF NOT EXISTS repairs (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   number         TEXT NOT NULL,
@@ -131,7 +133,11 @@ CREATE TABLE IF NOT EXISTS repairs (
   user_id        INTEGER REFERENCES users(id),
   created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   voided         INTEGER NOT NULL DEFAULT 0,
-  movement_id    INTEGER REFERENCES movements(id)
+  movement_id    INTEGER REFERENCES movements(id),
+  ready_at       TEXT,
+  due_on         TEXT,
+  deposit        INTEGER,
+  deposit_movement_id INTEGER REFERENCES movements(id)
 );
 
 -- Phones in stock. Selling one creates a sale movement with profit = price - cost.
@@ -192,6 +198,9 @@ function migrate() {
   if (!hasColumn('invoices', 'replaces_id')) db.exec('ALTER TABLE invoices ADD COLUMN replaces_id INTEGER');
   if (!hasColumn('invoices', 'show_vat')) db.exec('ALTER TABLE invoices ADD COLUMN show_vat INTEGER');
   if (!hasColumn('repairs', 'movement_id')) db.exec('ALTER TABLE repairs ADD COLUMN movement_id INTEGER');
+  for (const [column, type] of [['ready_at', 'TEXT'], ['due_on', 'TEXT'], ['deposit', 'INTEGER'], ['deposit_movement_id', 'INTEGER']]) {
+    if (!hasColumn('repairs', column)) db.exec(`ALTER TABLE repairs ADD COLUMN ${column} ${type}`);
+  }
   if (!hasColumn('categories', 'warranty')) {
     db.exec("ALTER TABLE categories ADD COLUMN warranty TEXT NOT NULL DEFAULT ''");
     tx(() => all("SELECT id, name FROM categories WHERE kind = 'sale'").forEach(category =>

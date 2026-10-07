@@ -6,6 +6,7 @@ import { movementsView } from './views/movements.js';
 import { ticketsView, invoicesView } from './views/invoices.js';
 import { repairsView } from './views/repairs.js';
 import { stockView } from './views/stock.js';
+import { searchView } from './views/search.js';
 import { filesView } from './views/files.js';
 import { settingsView } from './views/settings.js';
 
@@ -17,6 +18,7 @@ const DAY_CHECK_INTERVAL = 5 * 60e3;
 const ROUTES = [
   { segment: 'panel', view: dashboardView, access: 'admin', icon: 'chart', label: 'Panel' },
   { segment: 'caja', view: cashRegisterView, access: 'all', icon: 'cash', label: 'Caja' },
+  { segment: 'buscar', view: searchView, access: 'all', icon: 'search', label: 'Buscar' },
   { segment: 'reparaciones', view: repairsView, access: 'repairs', icon: 'wrench', label: 'Reparaciones' },
   { segment: 'stock', view: stockView, access: 'stock', icon: 'phone', label: 'Stock' },
   { segment: 'tickets', view: ticketsView, access: 'invoices', icon: 'receipt', label: 'Tickets' },

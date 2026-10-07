@@ -146,6 +146,9 @@ npm test         # comprueba que la API sigue funcionando después de un cambio
 Sección **Reparaciones**: sustituye al talonario de resguardos. Al recibir un móvil se apuntan cliente, terminal (marca, modelo, IMEI, código o patrón de desbloqueo), las averías marcadas y el importe, y se imprime el resguardo en un **folio A4 apaisado con dos copias** (una para el cliente y otra para la tienda, para cortar por la mitad), con las condiciones del servicio y los recuadros de firma. En *Ajustes → Reparaciones* se puede cambiar a la impresora de tickets.
 - Cada reparación queda **pendiente** hasta que se marca como **recogida**; el buscador encuentra por nombre, teléfono, modelo o IMEI.
 - Desde una reparación, **Hacer ticket** abre el ticket con el concepto, el importe y la garantía de reparación ya puestos.
+- **Tres estados**: *en reparación*, *lista para recoger* y *recogida*.
+- **Entrega prevista y señal**: el resguardo muestra la fecha prevista y, si el cliente deja dinero a cuenta, importe, señal y pendiente. La señal se apunta en caja al momento y al recoger solo se cobra el resto.
+- La **copia del cliente** no lleva el código ni el patrón de desbloqueo; la de la tienda sí.
 - **Cobro en caja**: al marcarla como recogida se pide importe, beneficio y forma de pago, y la venta queda apuntada en la caja.
 - **Avisar por WhatsApp**: abre WhatsApp con el mensaje "ya está listo" escrito. Tú pulsas enviar.
 - **Olvidadas**: las que llevan más días de los indicados sin recoger aparecen avisadas en Caja y en Reparaciones.
@@ -153,6 +156,11 @@ Sección **Reparaciones**: sustituye al talonario de resguardos. Al recibir un m
 
 ### Stock de móviles
 Sección **Stock**: el administrador da de alta cada móvil con marca, modelo, IMEI, estado (nuevo o segunda mano) y **coste**. Al pulsar **Vender** solo se pone el precio: la venta entra en caja con el beneficio calculado y el IMEI en la descripción. *Vender y hacer ticket* abre el ticket con el IMEI y la garantía que corresponde al estado. Los trabajadores solo ven el coste si tienen permiso para ver el beneficio.
+
+**Añadir albarán**: pega el texto del albarán del proveedor (copiado de un PDF o de una foto con el móvil) y la app saca cada móvil con su IMEI y su coste en una tabla para revisar antes de añadirlos todos de una vez.
+
+### Buscar
+Sección **Buscar**: una sola caja que busca a la vez en tickets, facturas, reparaciones, stock y (para el administrador) ventas y gastos, por nombre, teléfono, IMEI, modelo o número.
 
 ### Código QR e impresora
 En *Ajustes → Tickets y facturas* puedes poner un enlace (reseñas de Google, WhatsApp…) que se imprime como **código QR** al pie de cada ticket. La instalación de la impresora térmica en Windows está explicada en [docs/IMPRESORA.md](docs/IMPRESORA.md).

@@ -193,6 +193,46 @@ test('collecting a repair can charge it in the cash register once', async () => 
   assert.equal((await admin('POST', `/api/repairs/${repair.data.id}/status`, { status: 'collected', register })).status, 400);
 });
 
+test('a repair goes through ready, keeps its due date and discounts the deposit', async () => {
+  const category = (await admin('GET', '/api/categories')).data.find(c => c.name === 'Reparacion');
+  const before = (await admin('GET', '/api/day')).data.totals;
+  const repair = await admin('POST', '/api/repairs', {
+    model: 'Deposit phone', customer_phone: '611', notes: 'Screen', amount: 100, deposit: 30, due_on: '2030-01-15',
+    register_deposit: { category_id: category.id, payment_method: 'Efectivo' },
+  });
+  const id = repair.data.id;
+  assert.equal((await admin('POST', '/api/repairs', { model: 'X', customer_phone: '1', notes: 'Y', amount: 10, deposit: 20 })).status, 400);
+
+  let saved = (await admin('GET', `/api/repairs/${id}`)).data;
+  assert.deepEqual([saved.deposit, saved.due_on, saved.stage], [30, '2030-01-15', 'pending']);
+  assert.equal((await admin('GET', '/api/day')).data.totals.sales - before.sales, 30);
+
+  await admin('POST', `/api/repairs/${id}/status`, { status: 'ready' });
+  assert.equal((await admin('GET', `/api/repairs/${id}`)).data.stage, 'ready');
+  assert.deepEqual((await admin('GET', '/api/repairs?status=ready')).data.map(r => r.id), [id]);
+  assert.equal((await admin('GET', '/api/repairs/summary')).data.ready, 1);
+
+  await admin('PUT', `/api/repairs/${id}`, { ...saved, deposit: 5 });
+  assert.equal((await admin('GET', `/api/repairs/${id}`)).data.deposit, 30);
+
+  const tooMuch = { category_id: category.id, amount: 70, profit: 101, payment_method: 'Tarjeta' };
+  assert.equal((await admin('POST', `/api/repairs/${id}/status`, { status: 'collected', register: tooMuch })).status, 400);
+  const register = { category_id: category.id, amount: 70, profit: 85, payment_method: 'Tarjeta' };
+  await admin('POST', `/api/repairs/${id}/status`, { status: 'collected', register });
+  saved = (await admin('GET', `/api/repairs/${id}`)).data;
+  assert.deepEqual([saved.stage, saved.amount], ['collected', 100]);
+  const after = (await admin('GET', '/api/day')).data.totals;
+  assert.deepEqual([after.sales - before.sales, after.profit - before.profit], [100, 85]);
+});
+
+test('one search finds tickets, repairs, stock and movements', async () => {
+  const found = (await admin('GET', '/api/search?q=Deposit')).data;
+  assert.equal(found.repairs[0].title, 'Deposit phone');
+  assert.ok(found.movements.some(m => m.title.includes('Señal reparación')));
+  assert.equal((await admin('GET', '/api/search?q=Funda')).data.invoices.length, 2);
+  assert.equal((await admin('GET', '/api/search?q=x')).data.repairs.length, 0);
+});
+
 test('old pending repairs are listed as forgotten', async () => {
   const old = await admin('POST', '/api/repairs', { model: 'Old phone', customer_phone: '600', notes: 'Battery', date: '2020-01-01' });
   const forgotten = (await admin('GET', '/api/repairs?status=forgotten')).data;
@@ -215,6 +255,7 @@ test('selling a phone from stock records the sale with its profit', async () => 
 
   assert.equal((await admin('GET', '/api/stock')).data.length, 0);
   assert.equal((await admin('GET', '/api/stock?sold=1')).data.length, 1);
+  assert.equal((await admin('GET', '/api/search?q=3500')).data.stock[0].sold, true);
   assert.equal((await admin('POST', `/api/stock/${device.data.id}/sell`, { price: 140, category_id: category.id })).status, 400);
   assert.equal((await admin('DELETE', `/api/admin/stock/${device.data.id}`)).status, 400);
 });
@@ -249,7 +290,7 @@ test('workers are limited by permissions', async () => {
 
 test('statistics, CSV export and import', async () => {
   const stats = (await admin('GET', '/api/admin/stats')).data;
-  assert.equal(stats.totals.sales, 237);
+  assert.equal(stats.totals.sales, 337);
   assert.equal((await admin('GET', '/api/admin/year')).data.months.length, 12);
   assert.ok((await admin('GET', '/api/admin/movements')).data.length >= 3);
 

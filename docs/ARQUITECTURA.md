@@ -28,6 +28,7 @@ src/
     invoices.js           Tickets y facturas
     repairs.js            Resguardos de reparación
     stock.js              Stock de móviles
+    search.js             Buscador general
     stats.js              Cifras del panel del dueño
     settings.js           Guardar ajustes (con validación)
     users.js              Usuarios
@@ -42,6 +43,7 @@ public/
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
     repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
+    delivery-note.js      Lee el texto de un albarán de proveedor (modelo, IMEIs y precio)
     movement-form.js      Formulario de venta/gasto
     charts.js             Gráficos SVG
     views/                Una pantalla por archivo
@@ -50,6 +52,7 @@ public/
       invoices.js         Tickets y facturas (listado, detalle y editor)
       repairs.js          Reparaciones (listado, detalle y editor)
       stock.js            Stock de móviles
+      search.js           Buscar en todo
       movements.js        Movimientos
       files.js            Archivos
       settings.js         Ajustes
@@ -97,7 +100,7 @@ El tercer argumento es el acceso: `'public'` (sin sesión), `'user'` (cualquier 
 | `categories` | Productos (`kind = 'sale'`) y motivos de gasto (`kind = 'expense'`). Cada producto tiene su `warranty` por defecto |
 | `movements` | Una fila por venta o gasto |
 | `invoices` | Tickets (`kind = 'ticket'`) y facturas (`kind = 'factura'`). Las líneas van en `items` como JSON |
-| `repairs` | Resguardos de reparación: cliente, terminal, averías, importe y estado (`pending` / `collected`) |
+| `repairs` | Resguardos de reparación: cliente, terminal, averías, importe, señal, fecha prevista y estado (`pending` / `collected`; con `ready_at` relleno está lista para recoger) |
 | `devices` | Móviles en stock: coste, precio previsto y, al venderse, la venta (`movement_id`) |
 | `files` | Datos de los archivos subidos; el contenido está en `data/files/` |
 
@@ -123,6 +126,7 @@ Tres ayudas de `core.js` aparecen en todas partes:
 | Función | Para qué |
 |---|---|
 | `on(root, tipo, selector, fn)` | Escuchar un evento en cualquier elemento que cumpla el selector, aunque se pinte después |
+| `reloadView()` | Volver a pintar la pantalla actual desde cero tras un cambio. **No llames a la función `render…` otra vez sobre el mismo contenedor**: los eventos se duplicarían |
 | `tryApi(ruta, opciones)` | Llamar a la API mostrando el error como aviso; devuelve `undefined` si falla |
 | `esc(texto)` | Escapar cualquier dato antes de meterlo en HTML. **Obligatorio** con todo lo que escribe un usuario |
 

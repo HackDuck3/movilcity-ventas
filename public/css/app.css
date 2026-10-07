@@ -429,6 +429,7 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .fault-grid input { width: 18px; height: 18px; accent-color: var(--primary); flex: none; }
 .status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #fef3c7; color: #78350f; }
 .status-badge.done { background: #dcfce7; color: #14532d; }
+.status-badge.ready { background: #dbeafe; color: #1e3a8a; }
 
 /* Repair receipt on A4 landscape: two A5 copies side by side */
 .repair-sheet { width: 297mm; height: 210mm; background: #fff; color: #111; display: grid; grid-template-columns: 1fr 1fr; box-shadow: 0 2px 12px rgba(0,0,0,.12); font: 10.5px/1.35 Inter, Roboto, "Helvetica Neue", Arial, sans-serif; }
@@ -447,9 +448,11 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .sheet-field { display: flex; gap: 6px; align-items: baseline; border-bottom: 1px solid #bbb; min-height: 17px; }
 .sheet-field span { flex: none; color: #555; }
 .sheet-field b { overflow-wrap: anywhere; }
-.sheet-amount { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; padding: 4px 8px; border: 2px solid #111; border-radius: 4px; min-height: 26px; }
-.sheet-amount b { font-size: 16px; }
+.sheet-amount { margin-top: 6px; padding: 4px 8px; border: 2px solid #111; border-radius: 4px; min-height: 26px; }
+.sheet-amount div { display: flex; justify-content: space-between; align-items: baseline; }
+.sheet-amount div:last-child b { font-size: 16px; }
 .sheet-columns:has(.sheet-pattern) { grid-template-columns: 1fr auto; }
+.sheet-columns.single { grid-template-columns: 1fr; }
 .sheet-faults { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 8px; margin-bottom: 4px; font-size: 9.5px; }
 .sheet-faults div { display: flex; align-items: center; gap: 4px; }
 .sheet-faults i { width: 9px; height: 9px; border: 1px solid #111; flex: none; }

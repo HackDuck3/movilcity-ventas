@@ -1,6 +1,6 @@
 // Settings screen. To add an option: add it to DEFAULT_SETTINGS (src/defaults.js) and to SCHEMAS below.
 import {
-  api, state, esc, icon, toast, modal, applyAppearance, moneyInput, parseMoney, today, confirmDialog, on, tryApi,
+  api, state, esc, icon, toast, modal, applyAppearance, moneyInput, parseMoney, today, confirmDialog, on, reloadView, tryApi,
 } from '../core.js';
 
 const TABS = [
@@ -301,7 +301,7 @@ async function renderCategories(body, kind) {
 
   const intro = isSale
     ? 'Los productos <b>favoritos</b> (★) salen primero al registrar una venta. Puedes poner un precio y beneficio sugeridos que se rellenan solos, y la <b>garantía</b> que se propone en tickets y facturas. Desactivar un producto lo oculta sin borrar su historial.'
-    : 'Marca como <b>Mercancía</b> las compras de producto para revender (móviles, fundas…) y como <b>Operativo</b> el resto (alquiler, luz, comida…). Así el beneficio neto no cuenta dos veces lo que ya restaste en cada venta.';
+    : 'Los motivos <b>favoritos</b> (★) aparecen sin tener que escribir al registrar un gasto. Marca como <b>Mercancía</b> las compras de producto para revender (móviles, fundas…) y como <b>Operativo</b> el resto (alquiler, luz, comida…). Así el beneficio neto no cuenta dos veces lo que ya restaste en cada venta.';
 
   body.innerHTML = `
     <div class="notice" style="margin-bottom:14px">${intro}</div>
@@ -326,11 +326,13 @@ async function renderCategories(body, kind) {
     return `
       ${moneyCell(category, 'default_price')}
       ${moneyCell(category, 'default_profit')}
-      <td><select data-field="warranty" style="width:auto">${warrantyOptions}</select></td>
-      <td>
-        <button class="btn btn-ghost btn-icon" data-toggle-favorite title="Favorito" style="color:${category.favorite ? '#eab308' : 'var(--text-3)'}">${icon('star')}</button>
-      </td>`;
+      <td><select data-field="warranty" style="width:auto">${warrantyOptions}</select></td>`;
   }
+
+  const favoriteCell = (category) => `
+    <td>
+      <button class="btn btn-ghost btn-icon" data-toggle-favorite title="Favorito" style="color:${category.favorite ? '#eab308' : 'var(--text-3)'}">${icon('star')}</button>
+    </td>`;
 
   function categoryRow(category, index) {
     return `
@@ -342,6 +344,7 @@ async function renderCategories(body, kind) {
         <td><input type="color" class="swatch" data-field="color" value="${esc(category.color)}"></td>
         <td><input type="text" data-field="name" value="${esc(category.name)}" style="min-width:160px"></td>
         ${isSale ? saleCells(category) : `<td>${expenseTypeSelect('data-field="expense_type"', category.expense_type === 'stock' ? 'stock' : 'operating')}</td>`}
+        ${favoriteCell(category)}
         <td><input type="checkbox" data-field="active" ${category.active ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--primary)"></td>
       </tr>`;
   }
@@ -351,7 +354,8 @@ async function renderCategories(body, kind) {
       <table class="t">
         <thead><tr>
           <th style="width:70px">Orden</th><th>Color</th><th>Nombre</th>
-          ${isSale ? '<th>Precio sugerido</th><th>Beneficio sugerido</th><th>Garantía</th><th>Favorito</th>' : '<th>Tipo</th>'}
+          ${isSale ? '<th>Precio sugerido</th><th>Beneficio sugerido</th><th>Garantía</th>' : '<th>Tipo</th>'}
+          <th>Favorito</th>
           <th>Activo</th>
         </tr></thead>
         <tbody>${categories.map(categoryRow).join('')}</tbody>
@@ -408,7 +412,7 @@ async function renderCategories(body, kind) {
     if (!created) return;
     toast('Añadido', 'ok');
     await refreshCategories();
-    renderCategories(body, kind);
+    reloadView();
   });
 
   renderTable();
@@ -478,7 +482,7 @@ async function renderUsers(body) {
           if (!saved) return;
           toast('Usuario guardado', 'ok');
           close();
-          renderUsers(body);
+          reloadView();
         };
       },
     });

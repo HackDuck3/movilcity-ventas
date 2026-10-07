@@ -67,6 +67,19 @@ route('POST', '/api/admin/stock', 'admin', ({ user, body }) => {
   return { ok: true, id };
 });
 
+// Adds a whole delivery note at once: either every phone is saved or none is.
+route('POST', '/api/admin/stock/bulk', 'admin', ({ user, body }) => {
+  requireModule();
+  const devices = (Array.isArray(body.devices) ? body.devices : []).map(fieldsFromBody);
+  if (!devices.length) fail(400, 'No hay ningún móvil que añadir');
+  const repeated = devices.find(device => device.imei && get('SELECT 1 AS found FROM devices WHERE imei = ? AND sold_on IS NULL', device.imei));
+  if (repeated) fail(400, `El IMEI ${repeated.imei} ya está en stock`);
+  tx(() => devices.forEach(f => run(
+    `INSERT INTO devices (brand, model, imei, condition, cost, price, notes, purchased_on, user_id) VALUES (?,?,?,?,?,?,?,?,?)`,
+    f.brand, f.model, f.imei, f.condition, f.cost, f.price, f.notes, f.purchased_on, user.id)));
+  return { ok: true, added: devices.length };
+});
+
 route('PUT', '/api/admin/stock/:id', 'admin', ({ params, body }) => {
   const device = findDevice(params.id);
   if (device.sold_on) fail(400, 'Este móvil ya está vendido');
