@@ -1,4 +1,4 @@
-// Printable repair receipt for the thermal printer.
+// Printable repair receipt: an A4 landscape sheet with two A5 copies, or a thermal ticket.
 import { esc, money, fmtDate, fmtTime } from './core.js';
 import { thermalClass } from './invoice.js';
 
@@ -15,18 +15,83 @@ export function patternGrid(pattern) {
 }
 
 const line = (label, value) => (value ? `<div><b>${label}:</b> ${esc(value)}</div>` : '');
+const shopLines = (shop) => [shop.legal_name, shop.nif && `NIF: ${shop.nif}`, shop.address1, shop.address2, shop.phone]
+  .filter(Boolean).map(esc).join('<br>');
+
+// One A5 copy, laid out like the shop's paper receipt book.
+function sheetCopy(repair, settings, copyLabel) {
+  const { shop, repairs: config } = settings;
+  const field = (label, value) => `<div class="sheet-field"><span>${label}</span><b>${esc(value || '')}</b></div>`;
+  // Faults saved on the repair are listed even if they were later removed from settings.
+  const faultNames = [...new Set([...config.faults, ...repair.faults])];
+  const faults = faultNames.map(name => `
+    <div class="${repair.faults.includes(name) ? 'checked' : ''}"><i></i>${esc(name)}</div>`).join('');
+  const conditions = config.conditions.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
+
+  return `<section class="sheet-copy">
+    ${repair.voided ? '<div class="void-stamp">ANULADA</div>' : ''}
+    <header>
+      <div>
+        ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
+        <h2>${esc(shop.name)}</h2>
+        <div class="shop-lines">${shopLines(shop)}</div>
+      </div>
+      <div class="sheet-id">
+        <div class="sheet-title">Resguardo de reparación</div>
+        <div class="sheet-number">N.º ${esc(repair.number || '—')}</div>
+        <div>${fmtDate(repair.date)} ${fmtTime(repair.created_at)}</div>
+        <div class="copy-label">${copyLabel}</div>
+      </div>
+    </header>
+    <div class="sheet-columns">
+      <div>
+        <h4>Datos del terminal</h4>
+        ${field('Marca', repair.brand)}
+        ${field('Modelo', repair.model)}
+        ${field('IMEI', repair.imei)}
+        ${field('Código desbloqueo', repair.unlock_code)}
+        ${field('Compañía', repair.carrier)}
+      </div>
+      <div>
+        <h4>Cliente</h4>
+        ${field('Nombre', repair.customer_name)}
+        ${field('NIF', repair.customer_nif)}
+        ${field('Teléfono', repair.customer_phone)}
+        <div class="sheet-amount"><span>Importe</span><b>${repair.amount == null ? '' : money(repair.amount)}</b></div>
+      </div>
+    </div>
+    <div class="sheet-columns">
+      <div>
+        <h4>Reparación</h4>
+        <div class="sheet-faults">${faults}</div>
+        ${field('Otros', repair.notes)}
+        ${field('Estado del móvil', repair.condition)}
+      </div>
+      <div class="sheet-pattern"><h4>Patrón</h4>${patternGrid(repair.pattern)}</div>
+    </div>
+    ${config.disclaimer ? `<div class="sheet-disclaimer">${esc(config.disclaimer)}</div>` : ''}
+    ${conditions ? `<div class="sheet-conditions"><h4>Condiciones del servicio</h4>${conditions}</div>` : ''}
+    <div class="sheet-signatures"><div>Recogido</div><div>Firma de conformidad del cliente</div></div>
+  </section>`;
+}
+
+// A4 landscape: the customer's copy on the left and the shop's on the right, to cut down the middle.
+export function repairSheet(repair, settings) {
+  return `<div class="repair-sheet">
+    ${sheetCopy(repair, settings, 'Copia para el cliente')}
+    ${sheetCopy(repair, settings, 'Copia para la tienda')}
+  </div>`;
+}
 
 export function repairReceipt(repair, settings) {
   const { shop, repairs: config } = settings;
-  const shopLines = [shop.legal_name, shop.nif && `NIF: ${shop.nif}`, shop.address1, shop.address2, shop.phone]
-    .filter(Boolean).map(esc).join('<br>');
   const device = [repair.brand, repair.model].filter(Boolean).join(' ');
   const work = [...repair.faults, repair.notes].filter(Boolean);
   const conditions = config.conditions.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
 
   return `<div class="${thermalClass(settings)} repair-receipt">
     ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
-    <div class="c"><h2>${esc(shop.name)}</h2>${shopLines}</div>
+    <div class="c"><h2>${esc(shop.name)}</h2>${shopLines(shop)}</div>
     <hr>
     <div class="c big">RESGUARDO DE REPARACIÓN</div>
     <div class="tl"><b>N.º ${esc(repair.number || '')}</b><span>${fmtDate(repair.date)} ${fmtTime(repair.created_at)}</span></div>

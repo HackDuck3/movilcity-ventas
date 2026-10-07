@@ -1,8 +1,8 @@
 // Repair receipts: the slip the customer keeps while the shop has their device.
 import {
-  api, state, esc, icon, money, fmtDate, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, tryApi,
+  api, state, esc, icon, money, fmtDate, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, redrawOnResize, tryApi,
 } from '../core.js';
-import { repairReceipt } from '../repair-receipt.js';
+import { repairReceipt, repairSheet } from '../repair-receipt.js';
 import { printDocument } from '../invoice.js';
 
 const SECTION = '#/reparaciones';
@@ -14,6 +14,17 @@ export function repairsView(root, params, sub) {
   if (sub && params.get('editar') === '1') return renderEditor(root, Number(sub));
   if (sub) return renderDetail(root, Number(sub));
   return renderList(root);
+}
+
+// 'a4' prints one landscape sheet with two copies; 'ticket' uses the thermal printer.
+const defaultFormat = () => (state.settings.repairs.print_format === 'ticket' ? 'ticket' : 'a4');
+const receiptHtml = (repair, format) => (format === 'ticket' ? repairReceipt(repair, state.settings) : repairSheet(repair, state.settings));
+
+function printReceipt(repair, format) {
+  printDocument(receiptHtml(repair, format), {
+    format: format === 'ticket' ? 'ticket' : 'a4-landscape',
+    filename: `Reparacion-${repair.number}`,
+  });
 }
 
 const deviceName = (repair) => [repair.brand, repair.model].filter(Boolean).join(' ');
@@ -133,6 +144,10 @@ async function renderDetail(root, id) {
         <div class="sub">${fmtDate(repair.date)} · ${esc(deviceName(repair))} · recibido por ${esc(repair.user_name || '')} · ${statusBadge(repair)}</div>
       </div>
       <span class="spacer"></span>
+      <div class="seg">
+        <button data-format="a4">A4 (2 copias)</button>
+        <button data-format="ticket">Ticket térmico</button>
+      </div>
       <button class="btn btn-primary" data-print>${icon('print')} Imprimir resguardo</button>
       ${!repair.voided && !isCollected && whatsappUrl(repair) ? `
         <a class="btn" href="${esc(whatsappUrl(repair))}" target="_blank" rel="noopener" title="Abre WhatsApp con el mensaje ya escrito">
@@ -144,14 +159,35 @@ async function renderDetail(root, id) {
       ${canMakeTicket ? `<a class="btn" href="${ticketUrl}">${icon('receipt')} Hacer ticket</a>` : ''}
       ${isAdmin() && !repair.voided ? '<button class="btn btn-danger" data-void>Anular</button>' : ''}
     </div>
-    <div class="notice" style="margin-bottom:14px">
-      Imprime <b>dos copias</b>: una firmada por el cliente para la tienda y otra para el cliente.
-    </div>
-    <div class="inv-preview-wrap" style="position:static">${repairReceipt(repair, state.settings)}</div>`;
+    <div class="notice" style="margin-bottom:14px" data-print-hint></div>
+    <div class="inv-preview-wrap" style="position:static"><div class="inv-preview-scale" data-preview></div></div>`;
 
-  on(root, 'click', '[data-print]', () => {
-    printDocument(repairReceipt(repair, state.settings), { format: 'ticket', filename: `Reparacion-${repair.number}` });
+  let format = defaultFormat();
+  const preview = root.querySelector('[data-preview]');
+  const previewFrame = root.querySelector('.inv-preview-wrap');
+
+  // The preview is the real document, scaled down when it is wider than the screen.
+  function renderPreview() {
+    root.querySelectorAll('[data-format]').forEach(button => button.classList.toggle('on', button.dataset.format === format));
+    root.querySelector('[data-print-hint]').innerHTML = format === 'ticket'
+      ? 'Imprime <b>dos copias</b>: una firmada por el cliente para la tienda y otra para el cliente.'
+      : 'Sale <b>un folio apaisado con dos copias</b>: córtalo por la línea de puntos. En la ventana de impresión elige la impresora de folios y orientación <b>horizontal</b>.';
+    preview.innerHTML = receiptHtml(repair, format);
+    const page = preview.firstElementChild;
+    const scale = Math.min(1, (previewFrame.clientWidth - 36) / page.offsetWidth);
+    preview.style.transform = `scale(${scale})`;
+    preview.style.width = `${page.offsetWidth}px`;
+    preview.style.height = `${page.offsetHeight * scale}px`;
+    preview.style.margin = scale === 1 ? '0 auto' : '';
+  }
+  renderPreview();
+  redrawOnResize(previewFrame, renderPreview);
+
+  on(root, 'click', '[data-format]', (button) => {
+    format = button.dataset.format;
+    renderPreview();
   });
+  on(root, 'click', '[data-print]', () => printReceipt(repair, format));
   async function setStatus(status, register) {
     const saved = await tryApi(`/repairs/${id}/status`, { method: 'POST', body: { status, register } });
     if (saved) renderDetail(root, id);
@@ -339,7 +375,7 @@ async function renderEditor(root, id) {
       location.hash = `${SECTION}/${created.id}`;
       if (!print) return;
       const saved = await api(`/repairs/${created.id}`);
-      setTimeout(() => printDocument(repairReceipt(saved, state.settings), { format: 'ticket', filename: `Reparacion-${saved.number}` }), 300);
+      setTimeout(() => printReceipt(saved, defaultFormat()), 300);
     } catch (error) {
       toast(error.message, 'err');
     }

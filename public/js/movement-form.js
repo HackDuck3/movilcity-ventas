@@ -1,15 +1,17 @@
 // Sale / expense form, used in the cash register and when editing from Movements.
 import { api, state, esc, icon, toast, parseMoney, moneyInput, money, can, isAdmin, today, on } from './core.js';
 
+const MAX_SUGGESTIONS = 8;
+
 const TEXT = {
   sale: {
     newTitle: 'Nueva venta', editTitle: 'Editar venta', save: 'Guardar venta', saved: 'Venta guardada',
-    amount: 'Precio de venta', search: 'Buscar producto… (escribe y pulsa Enter)',
+    amount: 'Precio de venta', search: 'Escribe el producto y pulsa Enter…',
     descriptionHint: 'opcional: modelo, IMEI, cliente…', choose: 'Elige un producto', missing: 'Elige el producto vendido',
   },
   expense: {
     newTitle: 'Nuevo gasto', editTitle: 'Editar gasto', save: 'Guardar gasto', saved: 'Gasto guardado',
-    amount: 'Importe del gasto', search: 'Buscar motivo de gasto…',
+    amount: 'Importe del gasto', search: 'Escribe el motivo del gasto y pulsa Enter…',
     descriptionHint: 'ej.: 3 iPhone 13 al proveedor X', choose: 'Elige un motivo', missing: 'Elige el motivo del gasto',
   },
 };
@@ -103,11 +105,23 @@ export function mountMovementForm(container, options) {
   const readMoney = (name) => (field(name) ? parseMoney(field(name).value) : NaN);
   const selectedCategory = () => categories.find(category => category.id === selectedCategoryId);
 
-  function renderCategories() {
+  // Nothing typed: only the favourites (and the current choice). Typing shows the best matches.
+  function suggestedCategories() {
     const query = search.value.trim().toLowerCase();
-    const matches = query ? categories.filter(category => category.name.toLowerCase().includes(query)) : categories;
+    if (!query) return categories.filter(category => category.favorite || category.id === selectedCategoryId);
+    const startsWithQuery = (category) => (category.name.toLowerCase().startsWith(query) ? 0 : 1);
+    return categories
+      .filter(category => category.name.toLowerCase().includes(query))
+      .sort((a, b) => startsWithQuery(a) - startsWithQuery(b))
+      .slice(0, MAX_SUGGESTIONS);
+  }
+
+  function renderCategories() {
+    const matches = suggestedCategories();
     if (!matches.length) {
-      categoryGrid.innerHTML = `<span class="faint">No hay coincidencias. ${isAdmin() ? 'Puedes crear la categoría en Ajustes.' : ''}</span>`;
+      categoryGrid.innerHTML = search.value.trim()
+        ? `<span class="faint">No hay coincidencias. ${isAdmin() ? 'Puedes crear la categoría en Ajustes.' : ''}</span>`
+        : '<span class="faint">Empieza a escribir para ver sugerencias.</span>';
       return;
     }
     categoryGrid.innerHTML = matches.map(category => `

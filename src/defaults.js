@@ -117,6 +117,7 @@ const DEFAULT_SETTINGS = {
     faults: REPAIR_FAULTS,
     disclaimer: 'No nos hacemos responsables de cualquier otro fallo que tenga el móvil, solo de nuestra reparación.',
     conditions: REPAIR_CONDITIONS,
+    print_format: 'a4', // 'a4' (landscape sheet with two A5 copies) | 'ticket' (thermal printer)
     reminder_days: 15, // a pending repair older than this is listed as forgotten
     // Placeholders: {nombre} {terminal} {numero} {importe} {tienda}
     ready_message: 'Hola {nombre}, tu {terminal} ya está listo para recoger en {tienda}. Resguardo n.º {numero}.',

@@ -40,7 +40,7 @@ public/
     app.js                Arranque, login, menú y navegación
     core.js               Cliente de la API, formato de dinero/fechas, iconos, modales, avisos
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
-    repair-receipt.js     Plantilla imprimible del resguardo de reparación
+    repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
     movement-form.js      Formulario de venta/gasto
     charts.js             Gráficos SVG

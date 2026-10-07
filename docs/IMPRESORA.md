@@ -13,7 +13,7 @@ La aplicación imprime desde el navegador, como cualquier página. Eso significa
 
 - **Sí imprime el código QR, el logo y el patrón de desbloqueo**, porque el navegador los envía como imagen. Para eso hace falta el **driver de la impresora**: con el driver "Generic / Text Only" de Windows solo sale texto.
 - Los tickets y los resguardos ya están ajustados a 58 mm (*Ajustes → Tickets y facturas → Ancho del papel térmico*).
-- El resguardo de reparación, con todas las condiciones, sale largo (unos 45 cm). Si quieres gastar menos papel, acorta el texto en *Ajustes → Reparaciones*.
+- El resguardo de reparación se imprime por defecto en un folio A4 apaisado (impresora normal). Si lo cambias a ticket en *Ajustes → Reparaciones*, con todas las condiciones sale largo (unos 45 cm).
 
 > No he podido probar la impresora físicamente. Lo que sigue son los pasos habituales para este tipo de impresora; el primer ticket real es la prueba.
 

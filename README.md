@@ -143,7 +143,7 @@ npm test         # comprueba que la API sigue funcionando después de un cambio
 - Tras cambiar código en la Pi: `sudo systemctl restart movilcity` (los cambios en `public/` basta con recargar el navegador).
 
 ### Reparaciones
-Sección **Reparaciones**: sustituye al talonario de resguardos. Al recibir un móvil se apuntan cliente, terminal (marca, modelo, IMEI, código o patrón de desbloqueo), las averías marcadas y el importe, y se imprime el resguardo en la impresora de tickets de 80 mm con las condiciones del servicio y los recuadros de firma.
+Sección **Reparaciones**: sustituye al talonario de resguardos. Al recibir un móvil se apuntan cliente, terminal (marca, modelo, IMEI, código o patrón de desbloqueo), las averías marcadas y el importe, y se imprime el resguardo en un **folio A4 apaisado con dos copias** (una para el cliente y otra para la tienda, para cortar por la mitad), con las condiciones del servicio y los recuadros de firma. En *Ajustes → Reparaciones* se puede cambiar a la impresora de tickets.
 - Cada reparación queda **pendiente** hasta que se marca como **recogida**; el buscador encuentra por nombre, teléfono, modelo o IMEI.
 - Desde una reparación, **Hacer ticket** abre el ticket con el concepto, el importe y la garantía de reparación ya puestos.
 - **Cobro en caja**: al marcarla como recogida se pide importe, beneficio y forma de pago, y la venta queda apuntada en la caja.

@@ -162,19 +162,23 @@ export function ticket80(inv, settings) {
   </div>`;
 }
 
+// A ticket page is as wide as the paper roll and exactly as tall as its content.
+function pageSize(format, printRoot) {
+  if (format === 'a4-landscape') return 'A4 landscape';
+  if (format !== 'ticket') return 'A4';
+  printRoot.style.display = 'block';
+  const heightMm = Math.ceil(printRoot.firstElementChild.getBoundingClientRect().height * 25.4 / 96) + 6;
+  printRoot.style.display = '';
+  return `${paperWidth(state.settings)}mm ${heightMm}mm`;
+}
+
 // The browser print dialog doubles as "Save as PDF".
+// format: 'a4' | 'a4-landscape' | 'ticket'
 export function printDocument(html, { format = 'a4', filename = 'documento' } = {}) {
   const root = document.getElementById('print-root');
   root.innerHTML = html;
-  let pageCss = '@page { size: A4; margin: 0; }';
-  if (format === 'ticket') {
-    root.style.display = 'block';
-    const heightMm = Math.ceil(root.firstElementChild.getBoundingClientRect().height * 25.4 / 96) + 6;
-    root.style.display = '';
-    pageCss = `@page { size: ${paperWidth(state.settings)}mm ${heightMm}mm; margin: 0; }`;
-  }
   const style = document.createElement('style');
-  style.textContent = pageCss;
+  style.textContent = `@page { size: ${pageSize(format, root)}; margin: 0; }`;
   document.head.appendChild(style);
   const previousTitle = document.title;
   document.title = filename;

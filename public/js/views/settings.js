@@ -89,10 +89,11 @@ const SCHEMAS = {
   },
   reparaciones: {
     key: 'repairs',
-    intro: 'El resguardo de reparación se imprime en la impresora de tickets con estos textos.',
+    intro: 'Textos y formato del resguardo de reparación.',
     fields: [
       { name: 'prefix', type: 'text', label: 'Serie de reparaciones (prefijo)', hint: 'Ej.: "R-" → R-1, R-2…' },
       { name: 'next_number', type: 'number', label: 'Próximo número' },
+      { name: 'print_format', type: 'select', label: 'Formato del resguardo', wide: true, options: [['a4', 'Folio A4 apaisado con dos copias (cliente y tienda)'], ['ticket', 'Impresora térmica de tickets']] },
       { name: 'faults', type: 'list', label: 'Reparaciones habituales', hint: 'Una por línea. Son las casillas que se marcan al recibir un móvil.', wide: true, rows: 8 },
       { name: 'disclaimer', type: 'textarea', label: 'Aviso destacado', wide: true },
       { name: 'conditions', type: 'longtext', label: 'Condiciones del servicio', hint: 'Un párrafo por línea', wide: true },
