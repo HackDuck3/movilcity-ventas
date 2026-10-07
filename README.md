@@ -1,193 +1,164 @@
-# Movil City · Control de ventas
+# Movil City · Ventas
 
-Sustituye las 12 hojas de cálculo mensuales por una aplicación web con **roles** (trabajador / administrador), **panel del dueño**, **tickets y facturas en PDF**, **archivos de la tienda** y **ajustes tipo WordPress**.
+Aplicación web para llevar una tienda de telefonía: caja diaria, tickets y facturas, reparaciones, stock de móviles, compras de segunda mano y un panel con los resultados del negocio.
 
-> **¿Tienes umbrelOS en la Raspberry Pi?** Sigue **[INSTALAR-UMBREL.md](INSTALAR-UMBREL.md)**. No uses `install.sh`, porque umbrelOS borra al reiniciar lo instalado por SSH.
+Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa desde el navegador de cualquier ordenador o móvil. No tiene dependencias externas: solo Node.js y un archivo SQLite.
 
-- **Sin dependencias**: solo necesita Node.js 22.13 o superior (incluye la base de datos SQLite). No hay `npm install`.
-- Funciona **sin internet** en la red de la tienda (los gráficos están hechos a mano, no usan librerías externas).
-- Usa ~50 MB de RAM: la Raspberry Pi 4 de 2 GB va sobrada.
+![Panel del negocio](docs/img/panel.jpg)
 
----
+## Contenido
 
-## 1. Por qué web y no Google Sheets
+- [Qué incluye](#qué-incluye)
+- [Probarla](#probarla)
+- [Instalación](#instalación)
+- [Usuarios y permisos](#usuarios-y-permisos)
+- [Cómo se calcula el beneficio](#cómo-se-calcula-el-beneficio)
+- [Documentos verificables](#documentos-verificables)
+- [Datos y copias de seguridad](#datos-y-copias-de-seguridad)
+- [Avisos legales](#avisos-legales)
+- [Desarrollo](#desarrollo)
 
-| | Google Sheets | Esta app |
-|---|---|---|
-| Ocultar totales del mes al trabajador | ❌ Quien tiene acceso al archivo puede ver todo (las hojas ocultas y los rangos protegidos impiden *editar*, no *ver*) | ✅ El servidor ni siquiera le envía esos datos |
-| Saber quién apuntó cada venta | Parcial (historial de versiones) | ✅ Cada apunte guarda usuario y hora |
-| Evitar que borren ventas | ❌ | ✅ Solo pueden corregir sus apuntes durante X minutos; los borrados quedan registrados |
-| 12 hojas × 31 tablas a mano | Sí | ✅ Automático: el dashboard calcula día, mes y año |
-| Facturas | Plantilla aparte | ✅ Integradas, numeración automática, PDF |
+## Qué incluye
 
----
-
-## 2. Instalar en la Raspberry Pi 4 (Raspberry Pi OS)
-
-> Con **umbrelOS**, ve a [INSTALAR-UMBREL.md](INSTALAR-UMBREL.md).
-
-**Requisito:** Raspberry Pi OS **64-bit** (Lite o Desktop). Si la instalas de cero, usa *Raspberry Pi Imager* y en la configuración activa SSH y tu WiFi.
-
-1. Copia la carpeta `movilcity-ventas` a la Pi (por ejemplo a `/home/pi/movilcity-ventas`):
-   ```bash
-   # desde tu ordenador
-   scp -r movilcity-ventas pi@raspberrypi.local:~
-   ```
-2. En la Pi:
-   ```bash
-   cd ~/movilcity-ventas
-   bash install.sh
-   ```
-   El script instala Node.js si hace falta, crea un servicio que **arranca solo al encender la Pi** y te muestra la dirección, por ejemplo `http://192.168.1.50:3000`.
-3. Abre esa dirección desde el ordenador o el móvil de la tienda (misma WiFi). La primera vez te pedirá **crear la cuenta del administrador**.
-4. En **Ajustes → Usuarios** crea un usuario para cada trabajador (basta con un PIN de 4 cifras).
-
-> Consejo: en el router, reserva una IP fija para la Pi para que la dirección no cambie.
-
-### Probar con datos de ejemplo (sin tocar los reales)
-```bash
-npm run demo        # crea data-demo/ con 2 meses de ventas inventadas
-# abre http://<ip-de-la-pi>:3001   →  admin / admin123   ·   trabajador / 1234
-```
-Para regenerar la demo, borra la carpeta `data-demo/`.
-
-### Ejecutarlo en tu ordenador (Mac/Windows/Linux)
-Instala Node.js 22 o superior desde nodejs.org y en la carpeta del proyecto: `npm start` → http://localhost:3000
-
----
-
-## 3. Cómo se usa
-
-### Trabajador → pantalla **Caja**
-- Arriba ve los totales del día que tú le permitas (vendido, beneficio…). **Nunca ve los totales del mes ni del año.**
-- Dos botones grandes, uno al lado del otro: **Añadir venta** y **Añadir gasto** (atajos de teclado: `V` y `G`).
-- Venta rápida: escribe "fun" → `Enter` (elige *Funda*) → precio → coste o beneficio → `Enter`. El formulario queda listo para la siguiente.
-- Si escribe el **coste**, el beneficio se calcula solo (y al revés). Puedes cambiarlo en *Ajustes → Ventas*.
-- Botón **Guardar y hacer factura**: guarda la venta y abre la factura ya rellenada.
-
-### Administrador / dueño → **Panel**
-- Ventas, beneficio, gastos y **beneficio neto** por día, semana, mes, año o fechas a medida, comparado con el periodo anterior.
-- Productos que más beneficio dejan, gastos por motivo, ventas por trabajador y por forma de pago.
-- **Día a día**: la tabla que antes hacías en cada hoja, automática. Pulsa un día para abrir su caja.
-- **Año completo**: los 12 meses en una tabla (sustituye a tus 12 hojas).
-- **Movimientos**: buscar (por IMEI, modelo…), corregir, borrar, **recuperar borrados** y exportar a Excel.
-
-### Importante: cómo se calcula el beneficio neto
-En tu hoja, el "balance" era *ventas − gastos*. Pero si cada venta ya lleva su beneficio y además apuntas "compra de móviles 600 €" como gasto, **el coste de esos móviles se resta dos veces**. Por eso cada motivo de gasto es de uno de estos tipos:
-
-- **Mercancía** (compra de móviles, fundas, SIMs…): no resta del beneficio neto, porque ya lo restaste en cada venta.
-- **Operativo** (alquiler, luz, sueldos, Mercadona…): sí resta.
-
-| Indicador | Fórmula | Para qué sirve |
-|---|---|---|
-| Beneficio de ventas | suma del beneficio de cada venta | lo que ganas con el producto |
-| **Beneficio neto** | beneficio de ventas − gastos operativos | lo que de verdad gana el negocio |
-| Flujo de caja | ventas − todos los gastos | cuánto dinero entra o sale realmente (como tu antiguo "balance") |
-
----
-
-## 4. Tickets y facturas
-Son dos secciones separadas, cada una con su **propia serie de numeración**, como exige la normativa:
-
-| | **Tickets** (factura simplificada) | **Facturas** (factura completa) |
-|---|---|---|
-| Para | El cliente de mostrador | Quien necesita deducirse el IVA (empresas, autónomos) |
-| Datos del cliente | Opcionales | **Obligatorios**: nombre, NIF y dirección (la app no deja guardarla sin ellos) |
-| Numeración | Serie `T-1`, `T-2`… | Serie propia (continúa tu numeración anterior) |
-| Formato | Ticket térmico de 58 u 80 mm (o A4, a elegir) | A4 con el diseño de tu plantilla |
-| Límite | Hasta 400 € (3.000 € en venta al por menor); la app avisa | Sin límite |
-
-- Desde la **Caja**, cada venta tiene dos iconos: **hacer ticket** o **hacer factura**. También puedes pulsar *Guardar y hacer ticket / factura* al registrarla.
-- **Convertir en factura**: si un cliente con ticket vuelve pidiendo factura, abre el ticket y pulsa *Convertir en factura*. La factura indica que "sustituye a la factura simplificada nº T-X" y la venta no se duplica en caja.
-- **Tus datos fiscales** (Ajustes → Tienda: nombre y apellidos del titular, NIF y dirección) aparecen automáticamente en todos los PDF. Si faltan, la app te avisa.
-- **Garantía por tipo de producto**: en *Ajustes → Tickets y facturas* defines los tipos de garantía (producto nuevo, segunda mano, reparación, software…) y en *Ajustes → Productos* eliges cuál tiene cada producto. Al escribir una línea se propone sola y puedes cambiarla; el texto se imprime en el documento.
-- **Desglosar IVA**: interruptor en cada ticket o factura. Activado muestra base imponible e IVA; desactivado (por defecto) muestra solo el total. El precio es el mismo en los dos casos.
-- **PDF**: botón *Imprimir / Guardar PDF* y en "Destino" elige **Guardar como PDF**.
-- No se borran: se **anulan** (quedan marcados y la numeración no se reutiliza).
-
-> ⚠️ **Aviso legal** (no soy asesor fiscal, confírmalo con tu gestoría):
-> - Pregunta a tu gestoría si estás en **recargo de equivalencia** (habitual en comercio minorista), porque cambia cómo se trata el IVA en tus facturas.
-> - El reglamento **VeriFactu** (software de facturación homologado) será obligatorio para autónomos en **julio de 2027**. Esta aplicación **no está certificada**: a partir de esa fecha, para la facturación oficial necesitarás un programa homologado o adaptar este. Para el control interno de ventas y gastos no hay problema.
-
-## 4 bis. Archivos de la tienda (solo dueño)
-Sección **Archivos**: sube PDFs, fotos y documentos (contratos, facturas de proveedores, impuestos, seguros, garantías…), organizados en carpetas, con búsqueda y notas (por ejemplo, "renovar el 31/12").
-- Los trabajadores **no la ven** ni pueden acceder por la dirección: lo bloquea el servidor.
-- Se pueden ver en el navegador (PDF e imágenes), descargar, renombrar, mover de carpeta y borrar.
-- Se guardan en `data/files` (en Umbrel, dentro de los datos de la app, incluidos en sus copias de seguridad).
-
-## 5. Personalización (estilo WordPress)
-
-Todo desde **Ajustes**, sin tocar código:
-
-| Pestaña | Qué cambias |
+| Sección | Para qué sirve |
 |---|---|
-| Tienda | Nombre comercial, **titular**, NIF, dirección, teléfono, email, **logo** |
-| Apariencia | Colores, modo oscuro, densidad |
-| Productos | Añadir, renombrar, color, **orden**, favoritos (salen primero), precio y beneficio sugeridos, activar/desactivar |
-| Motivos de gasto | Igual, y si es *mercancía* u *operativo* |
-| Usuarios | Altas, bajas, roles, cambiar PIN |
-| Permisos | Qué ve el trabajador (vendido/beneficio/gastos del día), si puede apuntar gastos o hacer facturas, minutos para corregir, días de historial |
-| Ventas | Coste/beneficio, formas de pago, descripción obligatoria a partir de X € (útil para obligar a poner el IMEI) |
-| Tickets y facturas | Series y numeración, títulos, formato del ticket, **tipos de garantía**, pie, IVA, colores |
-| Archivos | Carpetas sugeridas y tamaño máximo |
-| Módulos | Activar/desactivar tickets y facturas, formas de pago y archivos |
-| Datos y copias | Exportar CSV, descargar copia de seguridad, **importar tus hojas antiguas** |
+| **Caja** | Apuntar ventas y gastos del día en segundos. Se escribe el producto, el precio y el coste o el beneficio; el resto se calcula. |
+| **Tickets y facturas** | Factura simplificada (ticket) y factura completa, cada una con su numeración. Garantía por tipo de producto, IVA desglosado opcional y conversión de ticket en factura. |
+| **Reparaciones** | Resguardo con los datos del terminal, las averías, la fecha prevista y la señal. Seguimiento *en reparación → lista → recogida*, aviso por WhatsApp y cobro en caja al entregar. |
+| **Stock** | Alta de cada móvil con su IMEI y su coste. Al venderlo, el beneficio se calcula solo. |
+| **Compras** | Compra de móviles usados a particulares, con contrato para firmar, foto del documento de identidad y registro exportable. |
+| **Buscar** | Una sola caja para tickets, facturas, reparaciones, stock y movimientos. También comprueba códigos de verificación. |
+| **Panel** | Ventas, beneficio y gastos por día, mes o año, comparados con el periodo anterior. Solo para administradores. |
+| **Movimientos** | Historial completo: filtrar, corregir, recuperar borrados y exportar a CSV. |
+| **Archivos** | Documentos de la tienda (contratos, albaranes, impuestos) ordenados en carpetas. |
+| **Ajustes** | Datos de la tienda, productos, usuarios, permisos, textos de los documentos y copias de seguridad. |
 
-### Si quieres tocar el código
-Lee **[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)**: explica cómo está organizado el proyecto, cómo viaja una petición, el modelo de datos y dónde tocar para cada tipo de cambio.
+Las secciones que no se usen se desactivan en *Ajustes → Módulos*.
+
+| Factura con dibujo de seguridad | Resguardo de reparación (dos copias) |
+|---|---|
+| ![Factura](docs/img/factura.jpg) | ![Resguardo de reparación](docs/img/reparacion.jpg) |
+
+## Probarla
+
+Con [Node.js](https://nodejs.org) 22.13 o superior:
 
 ```bash
-npm run demo     # app con datos de ejemplo → http://localhost:3001
-npm test         # comprueba que la API sigue funcionando después de un cambio
+git clone https://github.com/HackDuck3/movilcity-ventas.git
+cd movilcity-ventas
+npm run demo
 ```
-- Tras cambiar código en la Pi: `sudo systemctl restart movilcity` (los cambios en `public/` basta con recargar el navegador).
 
-### Reparaciones
-Sección **Reparaciones**: sustituye al talonario de resguardos. Al recibir un móvil se apuntan cliente, terminal (marca, modelo, IMEI, código o patrón de desbloqueo), las averías marcadas y el importe, y se imprime el resguardo en un **folio A4 apaisado con dos copias** (una para el cliente y otra para la tienda, para cortar por la mitad), con las condiciones del servicio y los recuadros de firma. En *Ajustes → Reparaciones* se puede cambiar a la impresora de tickets.
-- Cada reparación queda **pendiente** hasta que se marca como **recogida**; el buscador encuentra por nombre, teléfono, modelo o IMEI.
-- Desde una reparación, **Hacer ticket** abre el ticket con el concepto, el importe y la garantía de reparación ya puestos.
-- **Tres estados**: *en reparación*, *lista para recoger* y *recogida*.
-- **Entrega prevista y señal**: el resguardo muestra la fecha prevista y, si el cliente deja dinero a cuenta, importe, señal y pendiente. La señal se apunta en caja al momento y al recoger solo se cobra el resto.
-- La **copia del cliente** no lleva el código ni el patrón de desbloqueo; la de la tienda sí.
-- **Cobro en caja**: al marcarla como recogida se pide importe, beneficio y forma de pago, y la venta queda apuntada en la caja.
-- **Avisar por WhatsApp**: abre WhatsApp con el mensaje "ya está listo" escrito. Tú pulsas enviar.
-- **Olvidadas**: las que llevan más días de los indicados sin recoger aparecen avisadas en Caja y en Reparaciones.
-- Los textos (averías habituales, aviso, condiciones, mensaje de WhatsApp y días de aviso) se cambian en *Ajustes → Reparaciones*.
+Abre <http://localhost:3001>. La demo crea dos meses de ventas inventadas en `data-demo/` con dos usuarios: `admin` / `admin123` (administrador) y `trabajador` / `1234`. Para empezar de cero, borra esa carpeta.
 
-### Stock de móviles
-Sección **Stock**: el administrador da de alta cada móvil con marca, modelo, IMEI, estado (nuevo o segunda mano) y **coste**. Al pulsar **Vender** solo se pone el precio: la venta entra en caja con el beneficio calculado y el IMEI en la descripción. *Vender y hacer ticket* abre el ticket con el IMEI y la garantía que corresponde al estado. Los trabajadores solo ven el coste si tienen permiso para ver el beneficio.
+## Instalación
 
-**Añadir albarán**: pega el texto del albarán del proveedor (copiado de un PDF o de una foto con el móvil) y la app saca cada móvil con su IMEI y su coste en una tabla para revisar antes de añadirlos todos de una vez.
+| Dónde | Cómo |
+|---|---|
+| **Umbrel** | Como app de una tienda comunitaria. Guía paso a paso en [INSTALAR-UMBREL.md](INSTALAR-UMBREL.md). |
+| **Docker** | `docker compose up -d` con el [docker-compose.yml](docker-compose.yml) del repositorio. Queda en el puerto 4747. |
+| **Raspberry Pi OS, Debian o Ubuntu** | `bash install.sh` instala Node.js si falta y crea un servicio que arranca con el sistema (puerto 3000). |
+| **Cualquier ordenador** | `npm start` y abrir <http://localhost:3000>. |
 
-### Compras de segunda mano
-Sección **Compras**: para cuando la tienda compra un móvil usado a un particular.
-- Se apuntan el vendedor (nombre, DNI/NIE, domicilio), el móvil (marca, modelo, IMEI, estado) y el precio, y se imprime un **contrato de compraventa** con dos copias para firmar.
-- Se puede adjuntar la **foto del DNI**, que se guarda solo en tu servidor (`data/id-documents`) y solo puede ver el administrador.
-- El móvil entra en el **stock** como segunda mano y el pago se apunta como **gasto** en caja, si dejas marcadas esas casillas.
-- **Registro de compras (CSV)**: listado con todas las compras del año, para la gestoría o por si lo pide la policía.
-- Las cláusulas del contrato están en *Ajustes → Compras*. Son un borrador: que las revise tu gestoría.
+La primera vez que se abre, la aplicación pide crear la cuenta del administrador. Después:
 
-> ⚠️ La Ley Orgánica 4/2015 de seguridad ciudadana (art. 25) impone obligaciones de registro documental al comercio de objetos usados. Pregunta en tu comisaría de Policía Nacional o a tu gestoría qué registro y qué comunicaciones te exigen exactamente.
+1. *Ajustes → Tienda*: nombre, titular, NIF y dirección. Salen en todos los documentos.
+2. *Ajustes → Usuarios*: una cuenta por trabajador, para saber quién apunta cada venta.
+3. *Ajustes → Tickets y facturas*: prefijos y próximo número de cada serie.
 
-### Buscar
-Sección **Buscar**: una sola caja que busca a la vez en tickets, facturas, reparaciones, stock y (para el administrador) ventas y gastos, por nombre, teléfono, IMEI, modelo o número.
+La impresora de tickets en Windows tiene su propia guía: [docs/IMPRESORA.md](docs/IMPRESORA.md).
 
-### Código QR e impresora
-En *Ajustes → Tickets y facturas* puedes poner un enlace (reseñas de Google, WhatsApp…) que se imprime como **código QR** al pie de cada ticket. La instalación de la impresora térmica en Windows está explicada en [docs/IMPRESORA.md](docs/IMPRESORA.md).
+> La aplicación no cifra la conexión. Úsala dentro de la red local o a través de una VPN; no abras su puerto directamente a internet.
 
----
+## Usuarios y permisos
 
-## 6. Copias de seguridad
-- Automáticas cada día en `data/backups/` (se guardan 30 días).
-- Toda la información está en un único archivo: `data/ventas.db`. Copiarlo = copia completa.
-- Recomendado: una vez por semana descarga una copia desde *Ajustes → Datos y copias* y guárdala fuera de la Pi (la tarjeta SD puede fallar).
-- Restaurar: para el servicio (`sudo systemctl stop movilcity`), reemplaza `data/ventas.db` por la copia, borra `ventas.db-wal` y `ventas.db-shm` si existen y vuelve a arrancar.
+Hay dos tipos de cuenta:
 
-## 7. Acceder desde fuera de la tienda
-Lo más sencillo y seguro es **Tailscale** (gratis): instálalo en la Pi y en tu móvil y entrarás como si estuvieras en la WiFi de la tienda, sin abrir puertos del router. **No abras el puerto 3000 a internet directamente** (no hay HTTPS).
+- **Administrador**: ve y configura todo.
+- **Trabajador**: usa la caja y las secciones que se le permitan. Nunca ve el panel, los movimientos de otros días fuera de su límite ni los archivos.
 
-## 8. Pasar a un servidor más adelante
-Es exactamente la misma aplicación: copia la carpeta (incluida `data/`) a un VPS con Debian/Ubuntu, ejecuta `bash install.sh` y pon delante un proxy con HTTPS (por ejemplo Caddy: `caddy reverse-proxy --from ventas.tudominio.com --to localhost:3000`).
+En *Ajustes → Permisos* se decide qué ve un trabajador (total vendido, beneficio, gastos del día, días de historial) y qué puede hacer (gastos, tickets, reparaciones, compras, y durante cuántos minutos puede corregir sus apuntes).
 
-## 9. Migrar tus hojas actuales
-*Ajustes → Datos y copias → Importar CSV* acepta columnas `fecha; tipo; categoria; descripcion; importe; beneficio; metodo_pago`. Como tus hojas tienen un día al lado de otro, primero hay que pasarlas a ese formato (una fila por venta).
+Los permisos se comprueban en el servidor: un trabajador no recibe los datos que no puede ver, aunque inspeccione el navegador. Los borrados no eliminan nada; quedan marcados con quién y cuándo, y el administrador puede recuperarlos.
+
+## Cómo se calcula el beneficio
+
+Cada venta guarda su precio y su beneficio. Para no restar dos veces el coste de la mercancía, cada motivo de gasto es de uno de dos tipos:
+
+- **Mercancía** (compra de móviles, fundas, recambios): no resta del beneficio neto, porque su coste ya está descontado en el beneficio de cada venta.
+- **Operativo** (alquiler, luz, sueldos): sí resta.
+
+| Indicador | Cálculo | Qué indica |
+|---|---|---|
+| Beneficio de ventas | Suma del beneficio de cada venta | Lo que deja el producto |
+| Beneficio neto | Beneficio de ventas − gastos operativos | Lo que gana el negocio |
+| Flujo de caja | Ventas − todos los gastos | El dinero que entra o sale |
+
+## Documentos verificables
+
+Cada ticket y cada factura lleva un **código de verificación** de doce caracteres. El servidor lo calcula a partir del número, la fecha, el total y el cliente del documento, con una clave secreta que no sale de él. Sin esa clave no se puede obtener el código de un documento inventado ni el de uno al que se le haya cambiado el importe.
+
+La factura en A4 añade tres elementos dibujados a partir de ese código, distintos en cada documento:
+
+- una **banda de líneas entrelazadas** bajo la cabecera,
+- un **sello en roseta** junto al código,
+- dos líneas de **microtexto** con el nombre de la tienda, el número y el código, que se leen con lupa en el original y se emborronan al fotocopiarlo.
+
+Para comprobar un documento, escribe su código en **Buscar**: la aplicación muestra la fecha, el total y el cliente que constan en el registro, para compararlos con el papel.
+
+Un papel impreso siempre se puede escanear e imitar a simple vista. Lo que no se puede fabricar es un código válido, así que la prueba de autenticidad es la comprobación del código, no el aspecto.
+
+## Datos y copias de seguridad
+
+Todo se guarda en una carpeta de datos (`data/`, o el volumen `/data` en Docker y Umbrel):
+
+| Ruta | Contenido |
+|---|---|
+| `ventas.db` | La base de datos: ventas, documentos, reparaciones, stock, ajustes |
+| `files/` | Los archivos subidos a la sección Archivos |
+| `id-documents/` | Las fotos de documentos de identidad de las compras |
+| `backups/` | Una copia diaria de la base de datos; se conservan 30 |
+
+- *Ajustes → Datos y copias* descarga una copia de la base de datos. No incluye `files/` ni `id-documents/`.
+- En Umbrel, las copias de seguridad de la app incluyen la carpeta completa.
+- *Ajustes → Datos y copias* también exporta los movimientos a CSV e importa ventas y gastos desde un CSV con las columnas `fecha; categoria; importe` (y opcionalmente `tipo`, `beneficio`, `descripcion`, `metodo_pago`).
+- Para restaurar: detén la aplicación, sustituye `ventas.db` por la copia, borra `ventas.db-wal` y `ventas.db-shm` si existen y arranca de nuevo.
+
+La carpeta de datos está excluida del repositorio por `.gitignore`.
+
+## Avisos legales
+
+Esta aplicación es una herramienta de gestión. No sustituye al asesoramiento de una gestoría.
+
+- **Facturación**: no es un programa de facturación certificado según el reglamento VeriFactu, cuya entrada en vigor para autónomos está prevista para julio de 2027.
+- **IVA**: el régimen aplicable (recargo de equivalencia, bienes usados) cambia lo que debe figurar en una factura. La aplicación permite desglosar o no el IVA, pero no decide cuál corresponde.
+- **Compra de objetos usados**: la Ley Orgánica 4/2015, de protección de la seguridad ciudadana, impone obligaciones de registro documental a quien comercia con objetos usados. El registro de compras exportable recoge los datos habituales; el procedimiento concreto lo indica la comisaría correspondiente.
+- **Contrato de compraventa y condiciones de reparación**: los textos incluidos son borradores editables, no revisados por un abogado.
+- **Datos personales**: la aplicación guarda datos de clientes y vendedores, incluidas fotos de documentos de identidad. Quien la usa es responsable de su tratamiento.
+
+## Desarrollo
+
+```
+server.js        Servidor HTTP
+src/             Base de datos, autenticación y rutas de la API (una por área en src/routes/)
+public/          Aplicación web: JavaScript sin framework ni compilación
+scripts/         Datos de demostración, cambio de contraseña y publicación de versiones
+test/            Prueba de la API de principio a fin
+atik-movilcity/  Paquete para la tienda comunitaria de Umbrel
+docs/            Guías
+```
+
+```bash
+npm run demo     # aplicación con datos de ejemplo
+npm test         # recorre los flujos principales contra una base de datos temporal
+```
+
+[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) explica cómo está organizado el código, cómo viaja una petición, el modelo de datos y dónde tocar para cada tipo de cambio.
+
+Para publicar una versión: `bash scripts/release.sh 1.6.0`. El script ejecuta las pruebas, actualiza el número de versión, crea la etiqueta y la sube; GitHub Actions construye la imagen Docker y Umbrel ofrece la actualización.
+
+Si se olvida la contraseña del administrador: `node scripts/reset-password.js <usuario> <nueva-contraseña>`.
+
+## Licencia
+
+Sin licencia de código abierto. Todos los derechos reservados.

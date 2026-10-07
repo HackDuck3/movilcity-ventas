@@ -18,6 +18,7 @@ src/
   defaults.js             Datos iniciales: productos, tipos de garantía y AJUSTES POR DEFECTO
   settings.js             Leer y guardar ajustes
   auth.js                 Contraseñas (scrypt), sesiones y límite de intentos de login
+  security.js             Códigos de verificación de los documentos (HMAC con una clave del servidor)
   http.js                 route(), fail() y HttpError
   utils.js                Dinero, fechas y limpieza de textos
   api.js                  Carga todos los archivos de routes/
@@ -44,6 +45,7 @@ public/
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
     repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
+    security-pattern.js   Banda, sello y microtexto de seguridad, dibujados a partir del código de verificación
     purchase-contract.js  Contrato imprimible de compra de segunda mano (dos copias A4)
     delivery-note.js      Lee el texto de un albarán de proveedor (modelo, IMEIs y precio)
     movement-form.js      Formulario de venta/gasto
@@ -117,6 +119,13 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 - Al guardar, el servidor copia el **texto** de la garantía dentro de cada línea (`warranty_text`). Así, cambiar un texto en Ajustes no altera documentos ya emitidos.
 - Cada documento guarda `show_vat`: si se imprime el desglose de IVA o solo el total.
 
+### Código de verificación
+
+- Al crear un ticket o una factura, `src/security.js` calcula un código con HMAC-SHA256 sobre tipo, número, fecha, total y NIF del cliente, y se guarda en `invoices.security_code`.
+- La clave del HMAC se genera sola la primera vez y vive en la tabla `settings` con una clave que no está en `DEFAULT_SETTINGS`, así que la API nunca la envía al navegador. Va dentro de la copia de la base de datos: al restaurar una copia, los códigos ya impresos siguen siendo válidos.
+- El navegador solo recibe el código. Con él, `security-pattern.js` dibuja la banda, el sello y el microtexto: mismo código, mismo dibujo.
+- `GET /api/verify/:código` devuelve el documento al que pertenece. La pantalla Buscar lo llama cuando lo escrito tiene forma de código.
+
 ## Cómo está escrita una pantalla
 
 Todas las pantallas de `public/js/views/` siguen el mismo patrón:
@@ -140,8 +149,9 @@ Tres ayudas de `core.js` aparecen en todas partes:
 |---|---|
 | Cambiar el diseño de la factura o del ticket | `public/js/invoice.js` y la sección *invoices* de `public/css/app.css` |
 | Cambiar el resguardo de reparación | Textos: *Ajustes → Reparaciones*. Diseño: `public/js/repair-receipt.js` y la sección *repairs* de `app.css` |
-| Añadir un ajuste | `DEFAULT_SETTINGS` en `src/defaults.js` y `SCHEMAS` en `public/js/views/settings.js` (el formulario se genera solo) |
-| Añadir una pantalla | Crear `public/js/views/mi-vista.js` y registrarla en `ROUTES` de `public/js/app.js` |
+| Añadir un ajuste | `DEFAULT_SETTINGS` en `src/defaults.js` y una sección de `SCHEMAS` en `public/js/views/settings.js` (el formulario se genera solo) |
+| Añadir una pestaña de Ajustes | `TAB_GROUPS` en `public/js/views/settings.js`, más su entrada en `SCHEMAS` o en `CUSTOM_TABS` |
+| Añadir una pantalla | Crear `public/js/views/mi-vista.js` y registrarla en `ROUTES` de `public/js/app.js`, indicando su grupo del menú |
 | Añadir una ruta a la API | El archivo correspondiente de `src/routes/` (o uno nuevo, añadiéndolo en `src/api.js`) |
 | Añadir una columna a una tabla | El `CREATE TABLE` y la función `migrate()` de `src/db.js` (la migración actualiza las bases de datos ya existentes) |
 | Cambiar los productos o garantías iniciales | `src/defaults.js` (solo afecta a instalaciones nuevas) |
