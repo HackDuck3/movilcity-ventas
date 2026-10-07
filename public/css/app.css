@@ -585,3 +585,10 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .markup-help { line-height: 1.9; }
 .markup-help b { display: block; }
 .markup-help code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); }
+
+/* Phones: totals two by two, so the buttons below stay within reach */
+@media (max-width: 700px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi { padding: 10px 12px; }
+  .kpi .value, .kpi.hero .value { font-size: 20px; }
+}

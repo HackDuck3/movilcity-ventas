@@ -50,12 +50,31 @@ const SCHEMAS = {
     key: 'appearance',
     sections: [
       {
+        title: 'Aplicación',
         fields: [
           { name: 'appName', type: 'text', label: 'Nombre de la aplicación', hint: 'Se ve en la pestaña del navegador', wide: true },
           { name: 'primary', type: 'color', label: 'Color principal' },
           { name: 'accent', type: 'color', label: 'Color de acento' },
           { name: 'dark', type: 'bool', label: 'Modo oscuro', hint: 'Útil si la pantalla está muchas horas encendida' },
           { name: 'density', type: 'select', label: 'Densidad', options: [['normal', 'Normal'], ['compact', 'Compacta']] },
+        ],
+      },
+    ],
+  },
+  // Shown in the Appearance tab, below the palettes. It edits the document options of the `invoice` group.
+  documentos: {
+    key: 'invoice',
+    sections: [
+      {
+        title: 'Diseño de los documentos',
+        fields: [
+          {
+            name: 'layout', type: 'select', label: 'Diseño de facturas, contratos, resguardos y comunicados', wide: true,
+            options: [['sidebar', 'Columna lateral de color'], ['banner', 'Cabecera de color'], ['classic', 'Clásico']],
+          },
+          { name: 'color_shop', type: 'color', label: 'Color del nombre de la tienda', hint: 'Solo en el diseño clásico' },
+          { name: 'color_title', type: 'color', label: 'Color principal: columna, cabecera y títulos' },
+          { name: 'color_accent', type: 'color', label: 'Color de acento: total y detalles' },
         ],
       },
     ],
@@ -176,18 +195,6 @@ const SCHEMAS = {
           { name: 'paper_width', type: 'select', label: 'Ancho del papel térmico', hint: 'Lo indica la etiqueta de la impresora', options: [['58', '58 mm'], ['80', '80 mm']] },
           { name: 'qr_url', type: 'text', label: 'Enlace del código QR al pie', hint: 'Ej.: tus reseñas de Google o https://wa.me/34600000000. Vacío = sin QR', wide: true },
           { name: 'qr_caption', type: 'text', label: 'Texto bajo el código QR' },
-        ],
-      },
-      {
-        title: 'Diseño de la factura',
-        fields: [
-          {
-            name: 'layout', type: 'select', label: 'Diseño', wide: true,
-            options: [['sidebar', 'Columna lateral de color'], ['banner', 'Cabecera de color'], ['classic', 'Clásico']],
-          },
-          { name: 'color_shop', type: 'color', label: 'Color del nombre de la tienda' },
-          { name: 'color_title', type: 'color', label: 'Color principal: columna, cabecera y títulos' },
-          { name: 'color_accent', type: 'color', label: 'Color de acento: total y detalles' },
         ],
       },
     ],
@@ -335,12 +342,14 @@ async function renderAppearance(body) {
   body.innerHTML = `
     <div class="card card-pad" style="max-width:900px;margin-bottom:16px">
       <h3 class="settings-section">Paletas</h3>
-      <p class="muted" style="margin:0 0 12px">Cada paleta cambia a la vez los colores de la aplicación y los de facturas, contratos y resguardos. Puedes volver a la anterior cuando quieras.</p>
+      <p class="muted" style="margin:0 0 12px">Cada paleta cambia a la vez los colores de la aplicación y los de facturas, contratos, resguardos y comunicados. Puedes volver a la anterior cuando quieras.</p>
       <div class="palette-grid">${PALETTES.map(paletteCard).join('')}</div>
     </div>
-    <div data-form-slot></div>`;
+    <div data-documents-form style="margin-bottom:16px"></div>
+    <div data-app-form></div>`;
   on(body, 'click', '[data-use-palette]', (button) => usePalette(PALETTES[Number(button.dataset.usePalette)]));
-  await renderSchemaForm(body.querySelector('[data-form-slot]'), SCHEMAS.apariencia);
+  await renderSchemaForm(body.querySelector('[data-documents-form]'), SCHEMAS.documentos);
+  await renderSchemaForm(body.querySelector('[data-app-form]'), SCHEMAS.apariencia);
 }
 
 async function refreshCategories() {
