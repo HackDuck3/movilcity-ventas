@@ -3,7 +3,7 @@ import {
   api, state, esc, icon, toast, modal, applyAppearance, moneyInput, parseMoney, today, confirmDialog, on, reloadView, tryApi,
 } from '../core.js';
 import { guillocheBand, emblem } from '../security-pattern.js';
-import { paperSeed, initialsOf } from '../invoice.js';
+import { paperSeed, initialsOf } from '../paper.js';
 
 // The settings menu. A tab is either a form generated from SCHEMAS or one of the custom screens in CUSTOM_TABS.
 const TAB_GROUPS = [
@@ -258,8 +258,19 @@ const SCHEMAS = {
   },
 };
 
+// Ready-made colour combinations. Choosing one sets the app's colours and the documents' colours together:
+// `primary` is the main colour, `accent` the highlight (totals) and `shop` the shop's name on documents.
+const PALETTES = [
+  { name: 'Índigo y rosa', primary: '#283593', accent: '#e91e63', shop: '#6c63e6' },
+  { name: 'Azul noche y oro', primary: '#14213d', accent: '#a16207', shop: '#14213d' },
+  { name: 'Verde billete', primary: '#14532d', accent: '#b45309', shop: '#166534' },
+  { name: 'Grafito y cian', primary: '#1f2937', accent: '#0e7490', shop: '#0e7490' },
+  { name: 'Burdeos y azul', primary: '#7f1d3a', accent: '#1d4e89', shop: '#7f1d3a' },
+];
+
 // Tabs that are not a plain form.
 const CUSTOM_TABS = {
+  apariencia: renderAppearance,
   productos: (body) => renderCategories(body, 'sale'),
   gastos: (body) => renderCategories(body, 'expense'),
   usuarios: renderUsers,
@@ -287,7 +298,61 @@ export async function settingsView(root, params) {
       <div data-body style="min-width:0"></div>
     </div>`;
   const body = root.querySelector('[data-body]');
-  return SCHEMAS[tab.key] ? renderSchemaForm(body, SCHEMAS[tab.key]) : CUSTOM_TABS[tab.key](body);
+  return CUSTOM_TABS[tab.key] ? CUSTOM_TABS[tab.key](body) : renderSchemaForm(body, SCHEMAS[tab.key]);
+}
+
+// ---- Appearance: palettes on top, then the form with the individual options
+function paletteCard(palette, index) {
+  const { appearance, invoice } = state.settings;
+  const sameColor = (a, b) => String(a).toLowerCase() === b;
+  const isInUse = sameColor(appearance.primary, palette.primary) && sameColor(appearance.accent, palette.accent)
+    && sameColor(invoice.color_title, palette.primary) && sameColor(invoice.color_accent, palette.accent);
+  const seed = paperSeed(state.settings);
+  return `
+    <div class="palette-card" style="--doc-title:${palette.primary};--doc-accent:${palette.accent};--doc-shop:${palette.shop}">
+      <div class="row">
+        <b>${palette.name}</b><span class="spacer"></span>
+        ${isInUse ? '<span class="status-badge done">En uso</span>' : `<button type="button" class="btn btn-sm" data-use-palette="${index}">Usar</button>`}
+      </div>
+      <div class="palette-sample">
+        ${emblem(seed, initialsOf(state.settings.shop.name))}
+        <div>
+          <div class="palette-shop">${esc(state.settings.shop.name)}</div>
+          ${guillocheBand(seed)}
+          <div class="row">
+            <span class="palette-chip" style="background:${palette.primary}">Botones y títulos</span>
+            <span class="palette-chip" style="background:${palette.accent}">Total</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// Saves the palette in both places that hold colours: the app's appearance and the documents.
+async function usePalette(palette) {
+  const appearance = await tryApi('/admin/settings/appearance', { method: 'PUT', body: { primary: palette.primary, accent: palette.accent } });
+  const invoice = await tryApi('/admin/settings/invoice', {
+    method: 'PUT',
+    body: { color_shop: palette.shop, color_title: palette.primary, color_accent: palette.accent },
+  });
+  if (!appearance || !invoice) return;
+  state.settings.appearance = appearance;
+  state.settings.invoice = invoice;
+  applyAppearance(appearance);
+  toast(`Paleta "${palette.name}" aplicada a la app y a los documentos`, 'ok');
+  window.dispatchEvent(new Event('layout-refresh'));
+}
+
+async function renderAppearance(body) {
+  body.innerHTML = `
+    <div class="card card-pad" style="max-width:900px;margin-bottom:16px">
+      <h3 class="settings-section">Paletas</h3>
+      <p class="muted" style="margin:0 0 12px">Cada paleta cambia a la vez los colores de la aplicación y los de facturas, contratos y resguardos. Puedes volver a la anterior cuando quieras.</p>
+      <div class="palette-grid">${PALETTES.map(paletteCard).join('')}</div>
+    </div>
+    <div data-form-slot></div>`;
+  on(body, 'click', '[data-use-palette]', (button) => usePalette(PALETTES[Number(button.dataset.usePalette)]));
+  await renderSchemaForm(body.querySelector('[data-form-slot]'), SCHEMAS.apariencia);
 }
 
 async function refreshCategories() {

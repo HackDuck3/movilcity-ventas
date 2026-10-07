@@ -129,13 +129,18 @@ export const watermark = (seed) => remembered(`watermark:${seed}`, () => {
   return `<svg class="watermark" viewBox="0 0 ${ROSETTE.size} ${ROSETTE.size}" fill="none" stroke-width="5">${rosetteLines(center, center, rings, ROSETTE.steps).join('')}</svg>`;
 });
 
-// ---- Page frame: a guilloche band along the four edges of an A4 sheet, with a rosette on each corner
-const PAGE = { width: 2100, height: 2970, inset: 65, thickness: 46, step: 11, cornerRadius: 52, cornerSteps: 72 }; // tenths of a millimetre
+// ---- Page frame: a guilloche band along the four edges of a sheet, with a rosette on each corner
+// Sheets a frame can be drawn for, in tenths of a millimetre. `inset` keeps it inside what printers can reach.
+const SHEETS = {
+  a4: { width: 2100, height: 2970, inset: 65, thickness: 46, cornerRadius: 52 },
+  a5: { width: 1485, height: 2100, inset: 55, thickness: 36, cornerRadius: 42 },
+};
+const FRAME = { step: 11, cornerSteps: 72 };
 
-export const pageFrame = (seed) => remembered(`frame:${seed}`, () => {
+export const pageFrame = (seed, sheet = 'a4') => remembered(`frame:${sheet}:${seed}`, () => {
   const random = seededRandom(`frame:${seed}`);
   const wave = randomWave(random, 6, TITLE_COLOR);
-  const { width, height, inset, thickness } = PAGE;
+  const { width, height, inset, thickness, cornerRadius } = SHEETS[sheet];
   const far = { x: width - inset, y: height - inset };
 
   // Each side places a band point [along, across] on the page.
@@ -146,12 +151,12 @@ export const pageFrame = (seed) => remembered(`frame:${seed}`, () => {
     { length: height - inset * 2, place: ([along, across]) => [far.x - across, inset + along] },
   ];
   const bands = sides.flatMap(side =>
-    bandLines(side.length, thickness, wave, PAGE.step).map(points => line(points.map(side.place), wave.color)));
+    bandLines(side.length, thickness, wave, FRAME.step).map(points => line(points.map(side.place), wave.color)));
 
-  const cornerRings = randomRings(random, PAGE.cornerRadius, [[1, 7, 10, 4, ACCENT_COLOR], [0.55, 4, 6, 3, TITLE_COLOR]]);
+  const cornerRings = randomRings(random, cornerRadius, [[1, 7, 10, 4, ACCENT_COLOR], [0.55, 4, 6, 3, TITLE_COLOR]]);
   const middle = inset + thickness / 2;
   const corners = [[middle, middle], [width - middle, middle], [middle, height - middle], [width - middle, height - middle]]
-    .flatMap(([x, y]) => rosetteLines(x, y, cornerRings, PAGE.cornerSteps));
+    .flatMap(([x, y]) => rosetteLines(x, y, cornerRings, FRAME.cornerSteps));
 
   return `<svg class="frame" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" fill="none" stroke-width="1.4">${bands.join('')}${corners.join('')}</svg>`;
 });

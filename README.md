@@ -96,7 +96,7 @@ Cada venta guarda su precio y su beneficio. Para no restar dos veces el coste de
 
 ## Papel de seguridad
 
-Las facturas, y los tickets cuando se imprimen en A4, usan un papel con dibujos de línea fina como los de los billetes y los diplomas:
+Las facturas, los tickets impresos en A4, el contrato de compra y el resguardo de reparación usan un papel con dibujos de línea fina como los de los billetes y los diplomas:
 
 - un **marco** de líneas entrelazadas alrededor de la página, con una roseta en cada esquina,
 - un **emblema** con las iniciales de la tienda (o su logo, si lo tiene),
@@ -104,7 +104,9 @@ Las facturas, y los tickets cuando se imprimen en A4, usan un papel con dibujos 
 - una **marca de agua**: una roseta grande y tenue detrás del contenido,
 - **microtexto**: líneas de letra de medio milímetro con el nombre de la tienda, el número y la fecha del documento, que se leen con lupa en el original y se emborronan al fotocopiarlo.
 
-Todos los dibujos se calculan a partir de un texto. Por defecto es el nombre y el NIF de la tienda, de modo que cada tienda obtiene un papel distinto sin hacer nada. En *Ajustes → Tickets y facturas → Diseño de la factura* se puede probar otro dibujo, cambiar los colores o volver al papel liso.
+Todos los dibujos se calculan a partir de un texto. Por defecto es el nombre y el NIF de la tienda, de modo que cada tienda obtiene un papel distinto sin hacer nada. En *Ajustes → Tickets y facturas → Diseño de la factura* se puede probar otro dibujo o volver al papel liso.
+
+Los colores se eligen en *Ajustes → Apariencia*: cada paleta cambia a la vez los de la aplicación y los de los documentos.
 
 Este papel no impide que alguien escanee una factura, pero hace inviable imitarla con una plantilla de procesador de textos.
 

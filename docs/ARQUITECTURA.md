@@ -44,7 +44,8 @@ public/
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
     repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
-    security-pattern.js   Papel de seguridad: marco, emblema, banda, marca de agua y microtexto generados a partir de un texto
+    paper.js              Papel de seguridad de la tienda: qué dibujos y colores lleva cada documento A4
+    security-pattern.js   Los dibujos en sí: marco, emblema, banda, marca de agua y microtexto generados a partir de un texto
     purchase-contract.js  Contrato imprimible de compra de segunda mano (dos copias A4)
     delivery-note.js      Lee el texto de un albarán de proveedor (modelo, IMEIs y precio)
     movement-form.js      Formulario de venta/gasto
@@ -121,9 +122,12 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 ### Papel de seguridad
 
 - `security-pattern.js` dibuja en SVG el marco, el emblema, la banda, la marca de agua y el microtexto. Todo sale de un generador de números aleatorios con semilla: el mismo texto da siempre el mismo dibujo.
-- La semilla es el ajuste `invoice.paper_seed`; si está vacío, el nombre y el NIF de la tienda (`paperSeed()` en `invoice.js`).
+- La semilla es el ajuste `invoice.paper_seed`; si está vacío, el nombre y el NIF de la tienda (`paperSeed()` en `paper.js`).
 - `invoice.paper_style` elige entre el papel de seguridad (`security`) y el liso (`plain`).
+- Las plantillas (factura, contrato y resguardo) no llaman a los dibujos directamente: piden `securityPaper(settings)` a `paper.js`, que devuelve las piezas (`layer`, `emblem`, `band`, `rule`) o `null` si el papel es liso. Los colores salen de `documentColors(settings)`.
+- El resguardo de reparación pide el marco en tamaño A5, uno por copia.
 - Los dibujos se guardan en memoria por semilla, porque el editor de facturas repinta la vista previa en cada tecla.
+- Las paletas de *Ajustes → Apariencia* (`PALETTES` en `views/settings.js`) guardan a la vez los colores de la app (`appearance`) y los de los documentos (`invoice.color_*`).
 
 ## Cómo está escrita una pantalla
 

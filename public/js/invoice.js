@@ -1,7 +1,7 @@
 // Printable documents: A4 invoice and thermal ticket (58 or 80 mm paper).
 import { state, esc, money, fmtDate, fmtTime } from './core.js';
 import { qrSvg } from './qr.js';
-import { guillocheBand, emblem, watermark, pageFrame, microtext } from './security-pattern.js';
+import { securityPaper, documentColors } from './paper.js';
 
 const paperWidth = (settings) => (Number(settings.invoice.paper_width) === 80 ? 80 : 58);
 
@@ -97,35 +97,18 @@ function conditionsBlock(inv, cfg) {
   </div>`;
 }
 
-// ---- Security paper
-// The drawings of the paper come from a seed. Left empty in Settings, it is the shop's name and NIF,
-// so every shop gets a different paper without doing anything.
-export const paperSeed = (settings) => settings.invoice.paper_seed || `${settings.shop.name}|${settings.shop.nif}`;
-const usesSecurityPaper = (cfg) => cfg.paper_style !== 'plain';
-
-// "Movil City" → "MC"
-export const initialsOf = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0].toUpperCase()).join('');
-
-// Band under the header: a guilloche pattern between two lines of microtext that repeat the document's own data.
-function securityBand(seed, lettering) {
-  return `<div class="doc-security">${microtext(lettering)}${guillocheBand(seed)}${microtext(lettering)}</div>`;
-}
-
 export function invoiceA4(inv, settings) {
   const { shop, invoice: cfg } = settings;
   const customer = customerLines(inv);
   const title = documentTitle(inv, cfg);
-  const colors = `--doc-shop:${esc(cfg.color_shop)};--doc-title:${esc(cfg.color_title)};--doc-accent:${esc(cfg.color_accent)}`;
-  const secure = usesSecurityPaper(cfg);
-  const seed = paperSeed(settings);
+  const paper = securityPaper(settings);
+  // Printed in microtext, so the number and date cannot be changed without it showing.
   const lettering = [shop.name, title, inv.number, fmtDate(inv.date)].filter(Boolean).join(' · ');
   // The shop's logo, when there is one, takes the place of the emblem.
-  const mark = shop.logo
-    ? `<img class="shop-logo" src="${shop.logo}" alt="">`
-    : secure ? emblem(seed, initialsOf(shop.name)) : '';
+  const mark = shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : paper?.emblem || '';
 
-  return `<div class="invoice-doc ${secure ? 'security-paper' : ''}" style="${colors}">
-    ${secure ? `<div class="paper-layer">${pageFrame(seed)}${watermark(seed)}</div>` : ''}
+  return `<div class="invoice-doc ${paper ? 'security-paper' : ''}" style="${documentColors(settings)}">
+    ${paper ? paper.layer : ''}
     ${inv.voided ? '<div class="void-stamp">ANULADA</div>' : ''}
     <header class="doc-head">
       <div class="doc-brand">
@@ -141,7 +124,7 @@ export function invoiceA4(inv, settings) {
         <div class="doc-date">${fmtDate(inv.date)}</div>
       </div>
     </header>
-    ${secure ? securityBand(seed, lettering) : ''}
+    ${paper ? paper.band(lettering) : ''}
     ${customer ? `<section class="doc-customer"><h4>Cliente</h4>${customer}</section>` : ''}
     <table class="doc-items">
       <thead><tr><th>Descripción</th><th class="r">Cant.</th><th class="r">Precio</th><th class="r">Importe</th></tr></thead>
@@ -152,7 +135,7 @@ export function invoiceA4(inv, settings) {
       ${totalsBlock(inv, cfg)}
     </div>
     <div class="doc-end">
-      ${secure ? microtext(lettering) : ''}
+      ${paper ? paper.rule(lettering) : ''}
       ${cfg.footer ? `<footer class="doc-footer">${esc(cfg.footer)}</footer>` : ''}
     </div>
   </div>`;

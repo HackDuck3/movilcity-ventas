@@ -1,5 +1,6 @@
 // Printable contract for buying a used phone from a private seller: two A4 pages, one copy for each party.
 import { esc, money, fmtDate } from './core.js';
+import { securityPaper, documentColors } from './paper.js';
 
 const lines = (parts) => parts.filter(Boolean).map(esc).join('<br>');
 
@@ -7,12 +8,16 @@ function contractCopy(purchase, settings, copyLabel) {
   const { shop, purchases: config } = settings;
   const terms = config.terms.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
   const row = (label, value) => `<tr><th>${label}</th><td>${esc(value || '—')}</td></tr>`;
+  const paper = securityPaper(settings);
+  const lettering = [shop.name, 'Contrato de compraventa', purchase.number, fmtDate(purchase.date)].filter(Boolean).join(' · ');
+  const mark = shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : paper?.emblem || '';
 
-  return `<div class="invoice-doc contract-doc">
+  return `<div class="invoice-doc contract-doc ${paper ? 'security-paper' : ''}" style="${documentColors(settings)}">
+    ${paper ? paper.layer : ''}
     ${purchase.voided ? '<div class="void-stamp">ANULADA</div>' : ''}
     <header class="doc-head">
       <div class="doc-brand">
-        ${shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : ''}
+        ${mark}
         <h2 class="shop-name">${esc(shop.name)}</h2>
       </div>
       <div class="doc-id">
@@ -22,6 +27,7 @@ function contractCopy(purchase, settings, copyLabel) {
         <div class="copy-label">${copyLabel}</div>
       </div>
     </header>
+    ${paper ? paper.band(lettering) : ''}
 
     <p class="contract-intro">Compraventa de un teléfono móvil de segunda mano entre las siguientes partes:</p>
     <div class="contract-parties">
@@ -45,6 +51,7 @@ function contractCopy(purchase, settings, copyLabel) {
       <div>El comprador</div>
       <div>El vendedor</div>
     </div>
+    ${paper ? `<div class="contract-rule">${paper.rule(lettering)}</div>` : ''}
   </div>`;
 }
 

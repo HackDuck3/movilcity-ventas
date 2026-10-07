@@ -371,17 +371,19 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .invoice-doc .doc-footer { padding-top: 10px; font-size: 10.5px; color: var(--doc-muted); text-align: center; white-space: pre-line; }
 .invoice-doc:not(.security-paper) .doc-footer { border-top: 1px solid var(--doc-line); }
 
-/* Security paper: frame, watermark, emblem, guilloche band and microtext, all drawn by security-pattern.js */
-.invoice-doc.security-paper { border-top: 0; padding: 19mm 19mm 17mm; isolation: isolate; }
-.invoice-doc .paper-layer { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+/* Security paper: frame, watermark, emblem, guilloche band and microtext, all drawn by security-pattern.js.
+   Shared by the invoice, the purchase contract and each copy of the repair receipt. */
+.security-paper { isolation: isolate; }
+.paper-layer { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 .paper-layer .frame { position: absolute; inset: 0; width: 100%; height: 100%; }
 .paper-layer .watermark { position: absolute; left: 50%; top: 56%; width: 150mm; height: 150mm; transform: translate(-50%, -50%); opacity: .07; }
-.security-paper .doc-brand { display: flex; align-items: center; gap: 12px; }
-.security-paper .shop-logo { margin-bottom: 0; }
-.security-paper .doc-customer { background: rgba(244, 245, 248, .82); }
 .emblem { width: 22mm; height: 22mm; flex: none; }
 .guilloche { display: block; width: 100%; height: 9mm; margin: 0.4mm 0; }
 .microtext { display: block; width: 100%; height: 0.8mm; }
+.invoice-doc.security-paper { border-top: 0; padding: 19mm 19mm 17mm; }
+.invoice-doc.security-paper .doc-brand { display: flex; align-items: center; gap: 12px; }
+.invoice-doc.security-paper .shop-logo { margin-bottom: 0; }
+.invoice-doc.security-paper .doc-customer, .contract-doc.security-paper .contract-parties section { background: rgba(244, 245, 248, .82); }
 .invoice-doc .doc-security { margin-top: 14px; }
 .invoice-doc .void-stamp { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 90px; font-weight: 800; color: rgba(220, 38, 38, .22); border: 8px solid rgba(220, 38, 38, .22); padding: 0 30px; border-radius: 16px; }
 
@@ -496,6 +498,18 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .sheet-signatures { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .sheet-signatures div { border: 1px solid #111; height: 24mm; padding: 2px 5px; font-size: 9px; text-align: center; }
 .sheet-copy .void-stamp { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 60px; font-weight: 800; color: rgba(220, 38, 38, .22); border: 6px solid rgba(220, 38, 38, .22); padding: 0 20px; border-radius: 12px; }
+.sheet-brand { display: flex; align-items: center; gap: 8px; }
+/* On security paper each copy keeps clear of its frame, so everything is a little tighter */
+.sheet-copy.security-paper { padding: 12.5mm 12.5mm 11.5mm; gap: 6px; }
+.sheet-copy.security-paper header { border-bottom: 0; padding-bottom: 0; }
+.sheet-copy.security-paper .paper-layer .watermark { width: 104mm; height: 104mm; }
+.sheet-copy.security-paper .emblem { width: 13mm; height: 13mm; }
+.sheet-copy.security-paper .guilloche { height: 4mm; margin: 0.3mm 0; }
+.sheet-copy.security-paper .microtext { height: 0.7mm; }
+.sheet-copy.security-paper .sheet-title, .sheet-copy.security-paper .sheet-number, .sheet-copy.security-paper h2 { color: var(--doc-title); }
+.sheet-copy.security-paper .sheet-signatures div { height: 16mm; }
+.sheet-copy.security-paper .sheet-conditions { font-size: 7.6px; line-height: 1.25; }
+.sheet-copy.security-paper .shop-lines { font-size: 8.5px; line-height: 1.25; }
 @media print {
   .repair-sheet { box-shadow: none; height: calc(210mm - 0.2mm); }
 }
@@ -515,9 +529,29 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .contract-terms p { margin: 0 0 6px; text-align: justify; }
 .contract-signatures { margin-top: auto; padding-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .contract-signatures div { border: 1px solid var(--doc-ink); height: 32mm; padding: 4px 8px; font-size: 10.5px; text-align: center; }
+.contract-rule { padding-top: 10px; }
+/* On security paper the page loses room to the frame and the band, so the contract is set a little tighter */
+.contract-doc.security-paper { font-size: 11.5px; }
+.contract-doc.security-paper h4 { margin-top: 12px; }
+.contract-doc.security-paper .contract-intro { margin-top: 12px; }
+.contract-doc.security-paper .contract-terms p { margin-bottom: 4px; }
+.contract-doc.security-paper .contract-signatures { padding-top: 12px; }
+.contract-doc.security-paper .contract-signatures div { height: 20mm; }
+.contract-doc.security-paper .contract-parties { margin-top: 8px; }
+.contract-doc.security-paper .contract-table th, .contract-doc.security-paper .contract-table td { padding: 4px 0; }
 @media print {
   .contract-doc + .contract-doc { margin-top: 0; break-before: page; }
 }
+
+/* Palette cards in Settings > Appearance: each previews the emblem, the band and the two main colours */
+.palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.palette-card { padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: #fff; color: #1f2430; }
+.palette-sample { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.palette-sample > div { flex: 1; min-width: 0; }
+.palette-sample .emblem { width: 16mm; height: 16mm; }
+.palette-sample .guilloche { height: 6mm; }
+.palette-shop { font-weight: 750; font-size: 15px; color: var(--doc-shop); }
+.palette-chip { padding: 3px 9px; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 600; }
 
 /* Preview of the security paper in Settings */
 .pattern-preview { display: flex; align-items: center; gap: 14px; margin-top: 4px; padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: 10px; }
