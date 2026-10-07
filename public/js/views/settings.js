@@ -71,6 +71,7 @@ const SCHEMAS = {
           { name: 'repairs', type: 'bool', label: 'Reparaciones' },
           { name: 'stock', type: 'bool', label: 'Stock de móviles' },
           { name: 'purchases', type: 'bool', label: 'Compras de segunda mano' },
+          { name: 'notices', type: 'bool', label: 'Comunicados', hint: 'Políticas, tarifas y avisos para imprimir' },
           { name: 'files', type: 'bool', label: 'Archivos de la tienda', hint: 'Solo visible para administradores' },
         ],
       },

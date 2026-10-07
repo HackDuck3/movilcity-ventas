@@ -2,7 +2,9 @@
 // SQLite through Node's built-in node:sqlite (Node >= 22.13), so the app has no dependencies.
 const path = require('node:path');
 const fs = require('node:fs');
-const { SALE_CATEGORIES, FAVORITE_CATEGORIES, EXPENSE_CATEGORIES, PALETTE, defaultWarrantyFor } = require('./defaults');
+const {
+  SALE_CATEGORIES, FAVORITE_CATEGORIES, EXPENSE_CATEGORIES, PALETTE, STARTING_NOTICES, defaultWarrantyFor,
+} = require('./defaults');
 
 let Database;
 try {
@@ -184,6 +186,17 @@ CREATE TABLE IF NOT EXISTS purchases (
   voided         INTEGER NOT NULL DEFAULT 0
 );
 
+-- Notices the shop writes and prints: policies, price lists, announcements.
+CREATE TABLE IF NOT EXISTS notices (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  title      TEXT NOT NULL,
+  subtitle   TEXT NOT NULL DEFAULT '',
+  body       TEXT NOT NULL DEFAULT '',
+  user_id    INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 -- Uploaded shop documents. The content lives on disk at FILES_DIR/<stored_name>.
 CREATE TABLE IF NOT EXISTS files (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -233,6 +246,11 @@ function migrate() {
     tx(() => all("SELECT id, name FROM categories WHERE kind = 'sale'").forEach(category =>
       run('UPDATE categories SET warranty = ? WHERE id = ?', defaultWarrantyFor(category.name), category.id)));
   }
+  once('starting_notices', () => {
+    for (const notice of STARTING_NOTICES) {
+      run('INSERT INTO notices (title, subtitle, body) VALUES (?,?,?)', notice.title, notice.subtitle, notice.body);
+    }
+  });
   once('vat_breakdown_off_by_default', () => {
     const row = get("SELECT value FROM settings WHERE key = 'invoice'");
     const config = row ? JSON.parse(row.value) : {};

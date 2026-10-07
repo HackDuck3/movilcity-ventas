@@ -34,6 +34,7 @@ src/
     settings.js           Guardar ajustes (con validación)
     users.js              Usuarios
     data.js               Exportar/importar CSV y descargar la base de datos
+    notices.js            Comunicados (políticas, tarifas, avisos)
     files.js              Archivos de la tienda
 public/
   index.html              Página única
@@ -44,6 +45,7 @@ public/
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
     repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
+    notice.js             Comunicado imprimible y el marcado sencillo de su texto (#, -, |, **)
     purchase-contract.js  Contrato imprimible de compra de segunda mano (dos copias A4)
     delivery-note.js      Lee el texto de un albarán de proveedor (modelo, IMEIs y precio)
     movement-form.js      Formulario de venta/gasto
@@ -55,6 +57,7 @@ public/
       repairs.js          Reparaciones (listado, detalle y editor)
       stock.js            Stock de móviles
       purchases.js        Compras de segunda mano
+      notices.js          Comunicados
       search.js           Buscar en todo
       movements.js        Movimientos
       files.js            Archivos
@@ -106,6 +109,7 @@ El tercer argumento es el acceso: `'public'` (sin sesión), `'user'` (cualquier 
 | `repairs` | Resguardos de reparación: cliente, terminal, averías, importe, señal, fecha prevista y estado (`pending` / `collected`; con `ready_at` relleno está lista para recoger) |
 | `devices` | Móviles en stock: coste, precio previsto y, al venderse, la venta (`movement_id`) |
 | `purchases` | Compras de segunda mano: vendedor, móvil, precio y la foto del DNI (el archivo está en `data/id-documents/`) |
+| `notices` | Comunicados: título, subtítulo y texto con marcado sencillo |
 | `files` | Datos de los archivos subidos; el contenido está en `data/files/` |
 
 El esquema completo, comentado, está al principio de `src/db.js`.

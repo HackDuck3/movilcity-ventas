@@ -8,6 +8,7 @@ require('./routes/invoices');
 require('./routes/repairs');
 require('./routes/stock');
 require('./routes/purchases');
+require('./routes/notices');
 require('./routes/search');
 require('./routes/stats');
 require('./routes/settings');

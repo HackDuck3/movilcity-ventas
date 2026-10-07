@@ -285,6 +285,20 @@ test('buying a used phone adds it to stock, records the expense and keeps the id
   assert.equal((await admin('GET', '/api/search?q=Seller')).data.purchases.length, 1);
 });
 
+test('notices start with two templates and admins can write more', async () => {
+  const starting = (await admin('GET', '/api/notices')).data;
+  assert.equal(starting.length, 2);
+  assert.equal((await admin('POST', '/api/admin/notices', { body: 'no title' })).status, 400);
+
+  const created = await admin('POST', '/api/admin/notices', { title: 'Holiday hours', body: '# Closed\n- Monday' });
+  await admin('PUT', `/api/admin/notices/${created.data.id}`, { title: 'Holiday hours', subtitle: 'August', body: '# Closed\n- Tuesday' });
+  const saved = (await admin('GET', `/api/notices/${created.data.id}`)).data;
+  assert.deepEqual([saved.subtitle, saved.body], ['August', '# Closed\n- Tuesday']);
+
+  await admin('DELETE', `/api/admin/notices/${created.data.id}`);
+  assert.equal((await admin('GET', '/api/notices')).data.length, 2);
+});
+
 test('settings are validated and saved', async () => {
   const saved = await admin('PUT', '/api/admin/settings/invoice', {
     vat_rate: 10, color_title: 'not-a-colour',
@@ -308,6 +322,8 @@ test('workers are limited by permissions', async () => {
   const expense = (await worker('GET', '/api/categories')).data.find(c => c.kind === 'expense');
   assert.equal((await worker('POST', '/api/movements', { type: 'expense', category_id: expense.id, amount: 3 })).status, 403);
   assert.equal((await worker('GET', '/api/purchases')).status, 403);
+  assert.equal((await worker('GET', '/api/notices')).status, 200);
+  assert.equal((await worker('POST', '/api/admin/notices', { title: 'x' })).status, 403);
   assert.equal((await worker('GET', '/api/admin/purchases/1/id-document')).status, 403);
 
   const users = (await admin('GET', '/api/admin/users')).data;

@@ -69,6 +69,68 @@ const PURCHASE_TERMS = [
   '8. Los datos del vendedor y la copia de su documento de identidad se conservan únicamente para cumplir las obligaciones legales de registro y acreditar la procedencia del terminal.',
 ].join('\n');
 
+// Notices a new shop starts with. The body uses the simple markup of public/js/notice.js:
+// "# " starts a section, "- " a bullet, "| a | b |" a table row and **text** is bold.
+const STARTING_NOTICES = [
+  {
+    title: 'Política de cambios y devoluciones',
+    subtitle: 'Telefonía móvil, accesorios y reparación',
+    body: [
+      'En este establecimiento **no se admiten devoluciones con reembolso del importe**, salvo en caso de producto defectuoso. Algunos productos pueden cambiarse por otro en las condiciones indicadas a continuación.',
+      '',
+      '# Cambios de producto',
+      'Los productos que lo permiten pueden cambiarse por otro producto de la tienda en un plazo de **7 días naturales desde la fecha de compra**, siempre que se cumplan estas condiciones:',
+      '- Presentar el ticket o factura de compra original.',
+      '- Devolver el producto en su **embalaje original**, completo y con todos sus accesorios.',
+      '- El producto no debe presentar golpes, arañazos ni signos de mal uso.',
+      'Si el nuevo producto tiene un precio mayor, el cliente abonará la diferencia. Consulte en el momento de la compra si el producto admite cambio.',
+      '',
+      '# Productos sin cambio',
+      '- **Protectores de pantalla** una vez colocados.',
+      '- **Tarjetas SIM**, porque se registran a nombre del cliente y no son transferibles.',
+      '',
+      '# Productos defectuosos y garantía',
+      'Si un producto presenta un defecto (tara o fallo de fabricación), el cliente tiene derecho a la garantía legal, con independencia de la política de cambios: reparación o sustitución del producto y, si no fuera posible, rebaja del precio o devolución del importe.',
+      '| Tipo de producto | Garantía legal |',
+      '| Producto nuevo | 3 años desde la entrega |',
+      '| Móvil de segunda mano o reacondicionado | 2 años desde la entrega |',
+      'Para hacer uso de la garantía es necesario presentar el ticket o factura de compra. La garantía no cubre daños por golpes, humedad, caídas o mal uso.',
+      '',
+      '# Reclamaciones',
+      'Existen hojas de reclamación a disposición del cliente. Solicítelas en el mostrador.',
+    ].join('\n'),
+  },
+  {
+    title: 'Tarifas de reparación de móviles',
+    subtitle: 'Servicio de reparación de móviles',
+    body: [
+      '# Tarifas',
+      'Precios mínimos orientativos. El precio final depende de la marca y el modelo, y se indica en el presupuesto antes de reparar. Mano de obra incluida.',
+      '| Reparación | Precio |',
+      '| Cambio de pantalla | desde … € |',
+      '| Cambio de batería | desde … € |',
+      '| Conector de carga | desde … € |',
+      '| Cámara | desde … € |',
+      '| Cristal de cámara | desde … € |',
+      '| Bandeja de SIM | desde … € |',
+      '| Software o liberación | desde … € |',
+      '',
+      '# Presupuesto y plazo de entrega',
+      'El cliente tiene derecho a solicitar un presupuesto previo por escrito antes de cualquier reparación. El presupuesto es gratuito y no se realiza ninguna reparación sin su aceptación.',
+      'Plazo habitual de entrega: **desde 30 minutos hasta 1 día**. Puede ampliarse por falta de stock de la pieza o por la complejidad de la reparación; en ese caso se informará al cliente del nuevo plazo.',
+      '',
+      '# Garantía de las reparaciones',
+      'Todas las reparaciones tienen una garantía de **3 meses** desde la entrega del móvil. La garantía cubre la reparación realizada y las piezas sustituidas.',
+      'Las pantallas se prueban junto al cliente en el momento de la entrega. La garantía no cubre:',
+      '- Golpes, caídas, pantallas rotas o rayadas tras la entrega.',
+      '- Daños por humedad o líquidos.',
+      '- Averías distintas de la reparación realizada.',
+      '- Dispositivos abiertos o manipulados por terceros después de la reparación.',
+      'Para hacer uso de la garantía es necesario presentar el resguardo o factura de la reparación.',
+    ].join('\n'),
+  },
+];
+
 const DEFAULT_SETTINGS = {
   shop: {
     name: 'Movil City',
@@ -146,6 +208,7 @@ const DEFAULT_SETTINGS = {
     repairs: true,
     stock: true,
     purchases: true,
+    notices: true,
     payment_methods: true,
     files: true,
   },
@@ -155,4 +218,6 @@ const DEFAULT_SETTINGS = {
   },
 };
 
-module.exports = { SALE_CATEGORIES, FAVORITE_CATEGORIES, EXPENSE_CATEGORIES, PALETTE, DEFAULT_SETTINGS, defaultWarrantyFor };
+module.exports = {
+  SALE_CATEGORIES, FAVORITE_CATEGORIES, EXPENSE_CATEGORIES, PALETTE, DEFAULT_SETTINGS, STARTING_NOTICES, defaultWarrantyFor,
+};

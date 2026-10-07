@@ -563,3 +563,25 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .palette-card { padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .palette-sample { display: flex; margin-top: 10px; border-radius: 8px; overflow: hidden; }
 .palette-sample span { flex: 1; padding: 14px 8px 6px; color: #fff; font-size: 11px; font-weight: 600; }
+
+/* Notices: free text on the A4 design */
+.notice-doc .doc-title { text-transform: none; letter-spacing: -.01em; line-height: 1.15; }
+.notice-doc.layout-classic .doc-title { font-size: 22px; max-width: 95mm; }
+.notice-doc.layout-sidebar .doc-title { font-size: 27px; }
+.notice-doc.layout-banner .doc-title { font-size: 23px; max-width: 95mm; text-align: right; }
+.notice-subtitle { margin-top: 6px; color: var(--doc-muted); font-size: 13px; }
+.notice-doc.layout-banner .notice-subtitle { color: rgba(255, 255, 255, .78); text-align: right; }
+.notice-body { margin-top: 10mm; font-size: 13px; line-height: 1.55; }
+.notice-body h3 { margin: 16px 0 6px; padding-bottom: 4px; font-size: 14px; color: var(--doc-title); border-bottom: 2px solid var(--doc-accent); }
+.notice-body h3:first-child { margin-top: 0; }
+.notice-body p { margin: 0 0 8px; text-align: justify; }
+.notice-body ul { margin: 0 0 8px; padding-left: 18px; }
+.notice-body li { margin-bottom: 3px; }
+.notice-body table { width: 100%; border-collapse: collapse; margin: 4px 0 10px; }
+.notice-body th { text-align: left; padding: 7px 10px; background: var(--doc-title); color: #fff; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.notice-body td { padding: 7px 10px; border-bottom: 1px solid var(--doc-line); }
+.notice-date { margin-top: auto; padding-top: 14px; font-size: 10.5px; color: var(--doc-muted); }
+.notice-editor { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; }
+.markup-help { line-height: 1.9; }
+.markup-help b { display: block; }
+.markup-help code { padding: 1px 5px; border-radius: 4px; background: var(--surface-2); }

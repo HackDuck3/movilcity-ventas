@@ -30,6 +30,7 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 | **Buscar** | Una sola caja para tickets, facturas, reparaciones, stock, compras y movimientos. |
 | **Panel** | Ventas, beneficio y gastos por día, mes o año, comparados con el periodo anterior. Solo para administradores. |
 | **Movimientos** | Historial completo: filtrar, corregir, recuperar borrados y exportar a CSV. |
+| **Comunicados** | Políticas, tarifas y avisos de la tienda: se escriben una vez, con títulos, listas y tablas, y se imprimen con el diseño de los demás documentos. |
 | **Archivos** | Documentos de la tienda (contratos, albaranes, impuestos) ordenados en carpetas. |
 | **Ajustes** | Datos de la tienda, productos, usuarios, permisos, textos de los documentos y copias de seguridad. |
 
