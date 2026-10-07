@@ -1,157 +1,283 @@
-// Settings screen. To add an option: add it to DEFAULT_SETTINGS (src/defaults.js) and to SCHEMAS below.
+// Settings screen. To add an option: add it to DEFAULT_SETTINGS (src/defaults.js) and to a section of SCHEMAS below.
 import {
   api, state, esc, icon, toast, modal, applyAppearance, moneyInput, parseMoney, today, confirmDialog, on, reloadView, tryApi,
 } from '../core.js';
 
-const TABS = [
-  ['tienda', 'Tienda'], ['apariencia', 'Apariencia'], ['productos', 'Productos'], ['gastos', 'Motivos de gasto'],
-  ['usuarios', 'Usuarios'], ['permisos', 'Permisos'], ['ventas', 'Ventas'], ['facturas', 'Tickets y facturas'],
-  ['reparaciones', 'Reparaciones'], ['compras', 'Compras'], ['archivos', 'Archivos'], ['modulos', 'Módulos'], ['datos', 'Datos y copias'],
+// The settings menu. A tab is either a form generated from SCHEMAS or one of the custom screens in CUSTOM_TABS.
+const TAB_GROUPS = [
+  { title: 'Negocio', tabs: [['tienda', 'Tienda'], ['apariencia', 'Apariencia'], ['modulos', 'Módulos']] },
+  { title: 'Catálogo', tabs: [['productos', 'Productos'], ['gastos', 'Motivos de gasto']] },
+  { title: 'Equipo', tabs: [['usuarios', 'Usuarios'], ['permisos', 'Permisos']] },
+  { title: 'Mostrador', tabs: [['ventas', 'Ventas'], ['facturas', 'Tickets y facturas'], ['reparaciones', 'Reparaciones'], ['compras', 'Compras']] },
+  { title: 'Datos', tabs: [['archivos', 'Archivos'], ['datos', 'Datos y copias']] },
 ];
+const DEFAULT_TAB = 'tienda';
 
-// Tabs listed here are forms generated from a schema; `key` is the settings group they edit.
+// Each schema becomes a form. `key` is the settings group it edits; fields are grouped under section titles.
 // Field types: text, textarea, longtext, number, bool, color, select (needs options), list (one per line),
 // pairs (name + text rows) and image.
 const SCHEMAS = {
   tienda: {
     key: 'shop',
-    intro: 'Estos datos aparecen en el PDF de cada ticket y factura. Como autónomo, en las facturas deben figurar tu nombre y apellidos y tu NIF (el nombre comercial es opcional).',
-    fields: [
-      { name: 'name', type: 'text', label: 'Nombre comercial', hint: 'El nombre grande de arriba (ej. Movil City)' },
-      { name: 'legal_name', type: 'text', label: 'Nombre y apellidos del titular', hint: 'Obligatorio en facturas (o razón social si es una sociedad)' },
-      { name: 'nif', type: 'text', label: 'NIF', hint: 'Obligatorio en tickets y facturas' },
-      { name: 'address1', type: 'text', label: 'Dirección (línea 1)' },
-      { name: 'address2', type: 'text', label: 'Dirección (línea 2)', hint: 'CP, ciudad, provincia' },
-      { name: 'phone', type: 'text', label: 'Teléfono' },
-      { name: 'email', type: 'text', label: 'Email' },
-      { name: 'logo', type: 'image', label: 'Logo', hint: 'PNG/JPG, se muestra en facturas y en el menú', wide: true },
+    intro: 'Estos datos aparecen en todos los documentos que imprimes. En las facturas son obligatorios el nombre del titular y el NIF.',
+    sections: [
+      {
+        title: 'Nombre y logo',
+        fields: [
+          { name: 'name', type: 'text', label: 'Nombre comercial', hint: 'El nombre grande de los documentos y del menú' },
+          { name: 'logo', type: 'image', label: 'Logo', hint: 'PNG o JPG' },
+        ],
+      },
+      {
+        title: 'Datos fiscales',
+        fields: [
+          { name: 'legal_name', type: 'text', label: 'Titular', hint: 'Nombre y apellidos, o razón social' },
+          { name: 'nif', type: 'text', label: 'NIF' },
+          { name: 'address1', type: 'text', label: 'Dirección', hint: 'Calle y número' },
+          { name: 'address2', type: 'text', label: 'Código postal y ciudad' },
+        ],
+      },
+      {
+        title: 'Contacto',
+        fields: [
+          { name: 'phone', type: 'text', label: 'Teléfono' },
+          { name: 'email', type: 'text', label: 'Email' },
+        ],
+      },
     ],
   },
   apariencia: {
     key: 'appearance',
-    fields: [
-      { name: 'appName', type: 'text', label: 'Nombre de la aplicación', hint: 'Se ve en la pestaña del navegador' },
-      { name: 'primary', type: 'color', label: 'Color principal' },
-      { name: 'accent', type: 'color', label: 'Color de acento' },
-      { name: 'dark', type: 'bool', label: 'Modo oscuro', hint: 'Útil si la pantalla está muchas horas encendida' },
-      { name: 'density', type: 'select', label: 'Densidad', options: [['normal', 'Normal'], ['compact', 'Compacta']] },
+    sections: [
+      {
+        fields: [
+          { name: 'appName', type: 'text', label: 'Nombre de la aplicación', hint: 'Se ve en la pestaña del navegador', wide: true },
+          { name: 'primary', type: 'color', label: 'Color principal' },
+          { name: 'accent', type: 'color', label: 'Color de acento' },
+          { name: 'dark', type: 'bool', label: 'Modo oscuro', hint: 'Útil si la pantalla está muchas horas encendida' },
+          { name: 'density', type: 'select', label: 'Densidad', options: [['normal', 'Normal'], ['compact', 'Compacta']] },
+        ],
+      },
+    ],
+  },
+  modulos: {
+    key: 'modules',
+    intro: 'Activa solo las partes de la aplicación que uses. Las desactivadas desaparecen del menú; sus datos no se borran.',
+    sections: [
+      {
+        title: 'Secciones del menú',
+        fields: [
+          { name: 'invoices', type: 'bool', label: 'Tickets y facturas' },
+          { name: 'repairs', type: 'bool', label: 'Reparaciones' },
+          { name: 'stock', type: 'bool', label: 'Stock de móviles' },
+          { name: 'purchases', type: 'bool', label: 'Compras de segunda mano' },
+          { name: 'files', type: 'bool', label: 'Archivos de la tienda', hint: 'Solo visible para administradores' },
+        ],
+      },
+      {
+        title: 'Opciones',
+        fields: [
+          { name: 'payment_methods', type: 'bool', label: 'Formas de pago', hint: 'Apuntar cómo se cobra cada venta' },
+        ],
+      },
     ],
   },
   permisos: {
     key: 'permissions',
-    intro: 'Qué puede ver y hacer un TRABAJADOR. Los administradores lo ven todo. Estos límites se aplican en el servidor: aunque alguien sepa programar, no puede saltárselos desde el navegador.',
-    fields: [
-      { name: 'worker_see_daily_sales', type: 'bool', label: 'Ver el total vendido del día' },
-      { name: 'worker_see_daily_profit', type: 'bool', label: 'Ver el beneficio (por venta y total del día)' },
-      { name: 'worker_see_daily_expenses', type: 'bool', label: 'Ver todos los gastos del día', hint: 'Si está desactivado, solo ve los gastos que él mismo registra' },
-      { name: 'worker_add_expenses', type: 'bool', label: 'Puede registrar gastos' },
-      { name: 'worker_create_invoices', type: 'bool', label: 'Puede hacer facturas y tickets' },
-      { name: 'worker_create_repairs', type: 'bool', label: 'Puede gestionar reparaciones' },
-      { name: 'worker_create_purchases', type: 'bool', label: 'Puede comprar móviles de segunda mano', hint: 'Verá los datos de los vendedores, pero no las fotos de los DNI ya guardadas' },
-      { name: 'worker_edit_minutes', type: 'number', label: 'Minutos para corregir o borrar sus propios apuntes', hint: '0 = nunca. Pasado este tiempo, solo el administrador puede corregir.' },
-      { name: 'worker_history_days', type: 'number', label: 'Días anteriores que puede consultar', hint: '0 = solo el día de hoy' },
+    intro: 'Lo que puede ver y hacer un trabajador. Los administradores lo ven todo. Estos límites los aplica el servidor: no se pueden saltar desde el navegador.',
+    sections: [
+      {
+        title: 'Qué ve',
+        fields: [
+          { name: 'worker_see_daily_sales', type: 'bool', label: 'El total vendido del día' },
+          { name: 'worker_see_daily_profit', type: 'bool', label: 'El beneficio', hint: 'Por venta y total del día; también el coste de los móviles en stock' },
+          { name: 'worker_see_daily_expenses', type: 'bool', label: 'Todos los gastos del día', hint: 'Desactivado: solo los gastos que él mismo registra' },
+          { name: 'worker_history_days', type: 'number', label: 'Días anteriores que puede consultar', hint: '0 = solo hoy' },
+        ],
+      },
+      {
+        title: 'Qué puede hacer',
+        fields: [
+          { name: 'worker_add_expenses', type: 'bool', label: 'Registrar gastos' },
+          { name: 'worker_create_invoices', type: 'bool', label: 'Hacer tickets y facturas' },
+          { name: 'worker_create_repairs', type: 'bool', label: 'Gestionar reparaciones' },
+          { name: 'worker_create_purchases', type: 'bool', label: 'Comprar móviles de segunda mano', hint: 'Verá los datos de los vendedores, pero no las fotos de DNI ya guardadas' },
+          { name: 'worker_edit_minutes', type: 'number', label: 'Minutos para corregir o borrar sus apuntes', hint: '0 = nunca. Después solo puede el administrador' },
+        ],
+      },
     ],
   },
   ventas: {
     key: 'sales',
-    fields: [
+    sections: [
       {
-        name: 'profit_input', type: 'select', label: 'Cómo se apunta la ganancia', wide: true,
-        hint: 'Con "ambos", al escribir el coste se calcula el beneficio y viceversa',
-        options: [['both', 'Coste y beneficio (se calculan entre sí)'], ['profit', 'Solo beneficio (como en tu hoja)'], ['cost', 'Solo coste (el beneficio se calcula)']],
+        title: 'Beneficio',
+        fields: [
+          {
+            name: 'profit_input', type: 'select', label: 'Cómo se apunta la ganancia de cada venta', wide: true,
+            options: [['both', 'Coste y beneficio (cada uno calcula el otro)'], ['profit', 'Solo beneficio'], ['cost', 'Solo coste (el beneficio se calcula)']],
+          },
+        ],
       },
-      { name: 'ask_payment_method', type: 'bool', label: 'Preguntar forma de pago', hint: 'Permite cuadrar el efectivo de la caja al cerrar' },
-      { name: 'payment_methods', type: 'list', label: 'Formas de pago', hint: 'Una por línea', wide: true },
-      { name: 'require_description_over', type: 'number', label: 'Descripción obligatoria a partir de (€)', hint: 'Ej.: 100 → al vender un móvil obliga a poner modelo/IMEI. 0 = nunca' },
+      {
+        title: 'Formas de pago',
+        fields: [
+          { name: 'ask_payment_method', type: 'bool', label: 'Preguntar la forma de pago', hint: 'Permite cuadrar el efectivo al cerrar', wide: true },
+          { name: 'payment_methods', type: 'list', label: 'Formas de pago', hint: 'Una por línea', wide: true },
+        ],
+      },
+      {
+        title: 'Descripción',
+        fields: [
+          { name: 'require_description_over', type: 'number', label: 'Obligatoria a partir de (€)', hint: 'Ej.: 100 obliga a anotar modelo o IMEI al vender un móvil. 0 = nunca' },
+        ],
+      },
     ],
   },
   facturas: {
     key: 'invoice',
-    intro: 'Tickets y facturas llevan series de numeración separadas, como exige la normativa. Los números son correlativos: no los cambies una vez empezado el año salvo para corregir un error.',
-    fields: [
-      { name: 'ticket_prefix', type: 'text', label: 'Serie de tickets (prefijo)', hint: 'Ej.: "T-" → T-1, T-2…' },
-      { name: 'ticket_next_number', type: 'number', label: 'Próximo número de ticket' },
-      { name: 'prefix', type: 'text', label: 'Serie de facturas (prefijo)', hint: 'Ej.: "F-" o "2026-"' },
-      { name: 'next_number', type: 'number', label: 'Próximo número de factura' },
-      { name: 'ticket_title', type: 'text', label: 'Título en tickets', hint: 'Nombre legal: "Factura simplificada"' },
-      { name: 'title', type: 'text', label: 'Título en facturas' },
-      { name: 'ticket_format', type: 'select', label: 'Formato de impresión de los tickets', options: [['ticket', 'Impresora térmica de tickets'], ['a4', 'Folio A4 (mismo diseño que la factura)']] },
-      { name: 'paper_width', type: 'select', label: 'Ancho del papel térmico', hint: 'Lo indica la etiqueta de la impresora', options: [['58', '58 mm'], ['80', '80 mm']] },
-      { name: 'qr_url', type: 'text', label: 'Enlace para el código QR del ticket', hint: 'Ej.: tu enlace de reseñas de Google o https://wa.me/34600000000. Vacío = sin QR', wide: true },
-      { name: 'qr_caption', type: 'text', label: 'Texto bajo el código QR' },
-      { name: 'warranties', type: 'pairs', label: 'Tipos de garantía', wide: true, hint: 'Nombre y texto que se imprime. Asigna uno a cada producto en Ajustes → Productos; se puede cambiar en cada línea del ticket o factura.' },
-      { name: 'footer', type: 'textarea', label: 'Pie de página', hint: 'Ej.: datos registrales, política de devoluciones…', wide: true },
-      { name: 'show_vat', type: 'bool', label: 'Desglosar IVA por defecto', hint: 'Valor inicial del interruptor "Desglosar IVA" al hacer un ticket o factura' },
-      { name: 'vat_rate', type: 'number', label: 'Tipo de IVA (%)' },
-      { name: 'color_shop', type: 'color', label: 'Color del nombre de la tienda' },
-      { name: 'color_title', type: 'color', label: 'Color del título y cabeceras' },
-      { name: 'color_accent', type: 'color', label: 'Color del total' },
+    intro: 'Tickets y facturas llevan series de numeración separadas y correlativas. No cambies los números a mitad de año salvo para corregir un error.',
+    sections: [
+      {
+        title: 'Numeración',
+        fields: [
+          { name: 'ticket_prefix', type: 'text', label: 'Serie de tickets (prefijo)', hint: 'Ej.: "T-" → T-1, T-2…' },
+          { name: 'ticket_next_number', type: 'number', label: 'Próximo número de ticket' },
+          { name: 'prefix', type: 'text', label: 'Serie de facturas (prefijo)', hint: 'Ej.: "F-" o "2026-"' },
+          { name: 'next_number', type: 'number', label: 'Próximo número de factura' },
+        ],
+      },
+      {
+        title: 'Textos',
+        fields: [
+          { name: 'ticket_title', type: 'text', label: 'Título de los tickets', hint: 'Nombre legal: "Factura simplificada"' },
+          { name: 'title', type: 'text', label: 'Título de las facturas' },
+          { name: 'footer', type: 'textarea', label: 'Pie de página', hint: 'Ej.: política de devoluciones', wide: true },
+        ],
+      },
+      {
+        title: 'Garantías',
+        fields: [
+          { name: 'warranties', type: 'pairs', label: 'Tipos de garantía', wide: true, hint: 'Nombre y texto que se imprime. Cada producto tiene el suyo en Productos y se puede cambiar en cada línea.' },
+        ],
+      },
+      {
+        title: 'IVA',
+        fields: [
+          { name: 'show_vat', type: 'bool', label: 'Desglosar IVA por defecto', hint: 'Valor inicial del interruptor al hacer un ticket o factura' },
+          { name: 'vat_rate', type: 'number', label: 'Tipo de IVA (%)' },
+        ],
+      },
+      {
+        title: 'Impresión de tickets',
+        fields: [
+          { name: 'ticket_format', type: 'select', label: 'Dónde se imprimen', options: [['ticket', 'Impresora térmica de tickets'], ['a4', 'Folio A4, con el diseño de la factura']] },
+          { name: 'paper_width', type: 'select', label: 'Ancho del papel térmico', hint: 'Lo indica la etiqueta de la impresora', options: [['58', '58 mm'], ['80', '80 mm']] },
+          { name: 'qr_url', type: 'text', label: 'Enlace del código QR al pie', hint: 'Ej.: tus reseñas de Google o https://wa.me/34600000000. Vacío = sin QR', wide: true },
+          { name: 'qr_caption', type: 'text', label: 'Texto bajo el código QR' },
+        ],
+      },
+      {
+        title: 'Colores de la factura',
+        fields: [
+          { name: 'color_shop', type: 'color', label: 'Nombre de la tienda' },
+          { name: 'color_title', type: 'color', label: 'Título, cabeceras y dibujo de seguridad' },
+          { name: 'color_accent', type: 'color', label: 'Total y segundo color del dibujo' },
+        ],
+      },
     ],
   },
   reparaciones: {
     key: 'repairs',
-    intro: 'Textos y formato del resguardo de reparación.',
-    fields: [
-      { name: 'prefix', type: 'text', label: 'Serie de reparaciones (prefijo)', hint: 'Ej.: "R-" → R-1, R-2…' },
-      { name: 'next_number', type: 'number', label: 'Próximo número' },
-      { name: 'print_format', type: 'select', label: 'Formato del resguardo', wide: true, options: [['a4', 'Folio A4 apaisado con dos copias (cliente y tienda)'], ['ticket', 'Impresora térmica de tickets']] },
-      { name: 'faults', type: 'list', label: 'Reparaciones habituales', hint: 'Una por línea. Son las casillas que se marcan al recibir un móvil.', wide: true, rows: 8 },
-      { name: 'disclaimer', type: 'textarea', label: 'Aviso destacado', wide: true },
-      { name: 'conditions', type: 'longtext', label: 'Condiciones del servicio', hint: 'Un párrafo por línea', wide: true },
-      { name: 'reminder_days', type: 'number', label: 'Avisar de reparaciones sin recoger tras (días)' },
-      { name: 'ready_message', type: 'textarea', label: 'Mensaje de WhatsApp "ya está listo"', hint: 'Puedes usar {nombre}, {terminal}, {numero}, {importe} y {tienda}', wide: true },
+    sections: [
+      {
+        title: 'Numeración',
+        fields: [
+          { name: 'prefix', type: 'text', label: 'Serie (prefijo)', hint: 'Ej.: "R-" → R-1, R-2…' },
+          { name: 'next_number', type: 'number', label: 'Próximo número' },
+        ],
+      },
+      {
+        title: 'Resguardo',
+        fields: [
+          { name: 'print_format', type: 'select', label: 'Formato', wide: true, options: [['a4', 'Folio A4 apaisado con dos copias (cliente y tienda)'], ['ticket', 'Impresora térmica de tickets']] },
+          { name: 'faults', type: 'list', label: 'Reparaciones habituales', hint: 'Una por línea. Son las casillas que se marcan al recibir un móvil', wide: true, rows: 8 },
+          { name: 'disclaimer', type: 'textarea', label: 'Aviso destacado', wide: true },
+          { name: 'conditions', type: 'longtext', label: 'Condiciones del servicio', hint: 'Un párrafo por línea', wide: true },
+        ],
+      },
+      {
+        title: 'Avisos',
+        fields: [
+          { name: 'reminder_days', type: 'number', label: 'Avisar de reparaciones sin recoger tras (días)' },
+          { name: 'ready_message', type: 'textarea', label: 'Mensaje de WhatsApp "ya está listo"', hint: 'Admite {nombre}, {terminal}, {numero}, {importe} y {tienda}', wide: true },
+        ],
+      },
     ],
   },
   compras: {
     key: 'purchases',
     intro: 'Contrato para comprar móviles de segunda mano a particulares. Las cláusulas son un borrador: pide a tu gestoría que las revise.',
-    fields: [
-      { name: 'prefix', type: 'text', label: 'Serie de compras (prefijo)', hint: 'Ej.: "C-" → C-1, C-2…' },
-      { name: 'next_number', type: 'number', label: 'Próximo número' },
-      { name: 'terms', type: 'longtext', label: 'Cláusulas del contrato', hint: 'Un párrafo por línea', wide: true },
-    ],
-  },
-  modulos: {
-    key: 'modules',
-    intro: 'Activa o desactiva partes de la aplicación.',
-    fields: [
-      { name: 'invoices', type: 'bool', label: 'Tickets y facturas' },
-      { name: 'repairs', type: 'bool', label: 'Reparaciones' },
-      { name: 'stock', type: 'bool', label: 'Stock de móviles' },
-      { name: 'purchases', type: 'bool', label: 'Compras de segunda mano' },
-      { name: 'payment_methods', type: 'bool', label: 'Formas de pago' },
-      { name: 'files', type: 'bool', label: 'Archivos de la tienda', hint: 'Solo visible para administradores' },
+    sections: [
+      {
+        title: 'Numeración',
+        fields: [
+          { name: 'prefix', type: 'text', label: 'Serie (prefijo)', hint: 'Ej.: "C-" → C-1, C-2…' },
+          { name: 'next_number', type: 'number', label: 'Próximo número' },
+        ],
+      },
+      {
+        title: 'Contrato',
+        fields: [
+          { name: 'terms', type: 'longtext', label: 'Cláusulas', hint: 'Un párrafo por línea', wide: true },
+        ],
+      },
     ],
   },
   archivos: {
     key: 'files',
     intro: 'Los archivos se guardan en la carpeta data/files del servidor y solo los administradores pueden verlos o descargarlos.',
-    fields: [
-      { name: 'folders', type: 'list', label: 'Carpetas sugeridas', hint: 'Una por línea. También puedes escribir una carpeta nueva al subir.', wide: true },
-      { name: 'max_mb', type: 'number', label: 'Tamaño máximo por archivo (MB)' },
+    sections: [
+      {
+        fields: [
+          { name: 'folders', type: 'list', label: 'Carpetas sugeridas', hint: 'Una por línea. También puedes escribir una carpeta nueva al subir', wide: true },
+          { name: 'max_mb', type: 'number', label: 'Tamaño máximo por archivo (MB)' },
+        ],
+      },
     ],
   },
+};
+
+// Tabs that are not a plain form.
+const CUSTOM_TABS = {
+  productos: (body) => renderCategories(body, 'sale'),
+  gastos: (body) => renderCategories(body, 'expense'),
+  usuarios: renderUsers,
+  datos: renderDataTools,
 };
 
 // Changing these groups alters the menu or the theme, so the layout is redrawn after saving.
 const GROUPS_THAT_AFFECT_LAYOUT = ['shop', 'appearance', 'modules'];
 const LOGO_MAX_SIDE = 400;
 
-export async function settingsView(root, params) {
-  const tab = params.get('tab') || 'tienda';
-  root.innerHTML = `
-    <div class="page-head"><div><h1>Ajustes</h1><div class="sub">Personaliza la aplicación a tu manera</div></div></div>
-    <div class="tabs">
-      ${TABS.map(([key, label]) => `<a href="#/ajustes?tab=${key}" class="${key === tab ? 'on' : ''}">${label}</a>`).join('')}
-    </div>
-    <div data-body></div>`;
-  const body = root.querySelector('[data-body]');
+function menuHtml(currentTab) {
+  return TAB_GROUPS.map(group => `
+    <div class="sep">${group.title}</div>
+    ${group.tabs.map(([key, label]) => `<a href="#/ajustes?tab=${key}" class="${key === currentTab ? 'on' : ''}">${label}</a>`).join('')}`).join('');
+}
 
-  if (SCHEMAS[tab]) return renderSchemaForm(body, SCHEMAS[tab]);
-  if (tab === 'productos') return renderCategories(body, 'sale');
-  if (tab === 'gastos') return renderCategories(body, 'expense');
-  if (tab === 'usuarios') return renderUsers(body);
-  if (tab === 'datos') return renderDataTools(body);
+export async function settingsView(root, params) {
+  const allTabs = TAB_GROUPS.flatMap(group => group.tabs.map(([key, label]) => ({ key, label, group: group.title })));
+  const tab = allTabs.find(candidate => candidate.key === params.get('tab')) || allTabs.find(candidate => candidate.key === DEFAULT_TAB);
+
+  root.innerHTML = `
+    <div class="page-head"><div><h1>Ajustes</h1><div class="sub">${tab.group} · ${tab.label}</div></div></div>
+    <div class="settings-layout">
+      <nav class="card settings-nav">${menuHtml(tab.key)}</nav>
+      <div data-body style="min-width:0"></div>
+    </div>`;
+  const body = root.querySelector('[data-body]');
+  return SCHEMAS[tab.key] ? renderSchemaForm(body, SCHEMAS[tab.key]) : CUSTOM_TABS[tab.key](body);
 }
 
 async function refreshCategories() {
@@ -259,7 +385,9 @@ async function renderSchemaForm(body, schema) {
   body.innerHTML = `
     <form class="card card-pad" data-form style="max-width:900px">
       ${schema.intro ? `<div class="notice" style="margin-bottom:16px">${esc(schema.intro)}</div>` : ''}
-      <div class="settings-grid">${schema.fields.map(field => fieldHtml(field, values[field.name])).join('')}</div>
+      ${schema.sections.map(section => `
+        ${section.title ? `<h3 class="settings-section">${section.title}</h3>` : ''}
+        <div class="settings-grid">${section.fields.map(field => fieldHtml(field, values[field.name])).join('')}</div>`).join('')}
       <div class="row" style="margin-top:18px"><button class="btn btn-primary" type="submit">Guardar cambios</button></div>
     </form>`;
   const form = body.querySelector('[data-form]');
@@ -283,7 +411,8 @@ async function renderSchemaForm(body, schema) {
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const changes = Object.fromEntries(schema.fields.map(field => [field.name, readField(form, field)]));
+    const fields = schema.sections.flatMap(section => section.fields);
+    const changes = Object.fromEntries(fields.map(field => [field.name, readField(form, field)]));
     const saved = await tryApi(`/admin/settings/${schema.key}`, { method: 'PUT', body: changes });
     if (!saved) return;
     state.settings[schema.key] = saved;

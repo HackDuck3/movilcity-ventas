@@ -68,7 +68,7 @@ a { color: var(--primary); }
 .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
 .sidebar {
   background: var(--surface); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; padding: 16px 12px; position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column; padding: 16px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
 .brand img { width: 34px; height: 34px; object-fit: contain; border-radius: 8px; }
@@ -145,8 +145,8 @@ a { color: var(--primary); }
 .big-btn.active.expense { border-color: var(--expense); }
 .big-btn:disabled { opacity: .45; cursor: not-allowed; }
 
-label.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
-label.field .hint { font-weight: 400; color: var(--text-3); font-size: 12px; }
+label.field, div.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+label.field .hint, div.field .hint { font-weight: 400; color: var(--text-3); font-size: 12px; }
 input:not([type]), input[type=text], input[type=password], input[type=number], input[type=date], input[type=email], input[type=search], select, textarea {
   border: 1px solid var(--border); background: var(--surface); border-radius: 9px; padding: 9px 11px; width: 100%; min-width: 0;
 }
@@ -290,6 +290,23 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .hbar .val small { color: var(--text-3); font-weight: 500; margin-left: 4px; }
 
 /* ------------------------------------------------------------------ settings */
+.settings-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; align-items: start; }
+.settings-nav { padding: 8px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 16px; }
+.settings-nav .sep { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); padding: 12px 10px 4px; }
+.settings-nav .sep:first-child { padding-top: 4px; }
+.settings-nav a { padding: 8px 10px; border-radius: 8px; text-decoration: none; color: var(--text-2); font-weight: 500; }
+.settings-nav a:hover { background: var(--surface-2); }
+.settings-nav a.on { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); font-weight: 600; }
+:root[data-theme="dark"] .settings-nav a { color: var(--text-2); }
+:root[data-theme="dark"] .settings-nav a.on { color: color-mix(in srgb, var(--primary) 45%, white); }
+@media (max-width: 900px) {
+  .settings-layout { grid-template-columns: 1fr; }
+  .settings-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+  .settings-nav .sep { width: 100%; padding-top: 8px; }
+  .settings-nav a { border: 1px solid var(--border); }
+}
+.card .settings-section { margin: 28px 0 14px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.card form > .settings-section:first-child, .card .notice + .settings-section, .card.card-pad > .settings-section:first-child { margin-top: 0; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .settings-grid .wide { grid-column: 1 / -1; }
 @media (max-width: 700px) { .settings-grid { grid-template-columns: 1fr; } }

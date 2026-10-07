@@ -16,19 +16,23 @@ const MOBILE_BAR_LINKS = 4;
 const DAY_CHECK_INTERVAL = 5 * 60e3;
 
 // `segment` is the first part of the URL hash (#/caja). `access` decides who sees the screen.
+// The menu lists the routes in this order, under the group titles of NAV_GROUPS.
+const NAV_GROUPS = ['', 'Mostrador', 'Móviles', 'Gestión'];
 const ROUTES = [
-  { segment: 'panel', view: dashboardView, access: 'admin', icon: 'chart', label: 'Panel' },
-  { segment: 'caja', view: cashRegisterView, access: 'all', icon: 'cash', label: 'Caja' },
-  { segment: 'buscar', view: searchView, access: 'all', icon: 'search', label: 'Buscar' },
-  { segment: 'reparaciones', view: repairsView, access: 'repairs', icon: 'wrench', label: 'Reparaciones' },
-  { segment: 'stock', view: stockView, access: 'stock', icon: 'phone', label: 'Stock' },
-  { segment: 'compras', view: purchasesView, access: 'purchases', icon: 'swap', label: 'Compras' },
-  { segment: 'tickets', view: ticketsView, access: 'invoices', icon: 'receipt', label: 'Tickets' },
-  { segment: 'facturas', view: invoicesView, access: 'invoices', icon: 'invoice', label: 'Facturas' },
-  { segment: 'movimientos', view: movementsView, access: 'admin', icon: 'list', label: 'Movimientos' },
-  { segment: 'archivos', view: filesView, access: 'files', icon: 'folder', label: 'Archivos' },
-  { segment: 'ajustes', view: settingsView, access: 'admin', icon: 'settings', label: 'Ajustes' },
+  { segment: 'buscar', view: searchView, access: 'all', icon: 'search', label: 'Buscar', group: '' },
+  { segment: 'caja', view: cashRegisterView, access: 'all', icon: 'cash', label: 'Caja', group: 'Mostrador' },
+  { segment: 'reparaciones', view: repairsView, access: 'repairs', icon: 'wrench', label: 'Reparaciones', group: 'Mostrador' },
+  { segment: 'tickets', view: ticketsView, access: 'invoices', icon: 'receipt', label: 'Tickets', group: 'Mostrador' },
+  { segment: 'facturas', view: invoicesView, access: 'invoices', icon: 'invoice', label: 'Facturas', group: 'Mostrador' },
+  { segment: 'stock', view: stockView, access: 'stock', icon: 'phone', label: 'Stock', group: 'Móviles' },
+  { segment: 'compras', view: purchasesView, access: 'purchases', icon: 'swap', label: 'Compras', group: 'Móviles' },
+  { segment: 'panel', view: dashboardView, access: 'admin', icon: 'chart', label: 'Panel', group: 'Gestión' },
+  { segment: 'movimientos', view: movementsView, access: 'admin', icon: 'list', label: 'Movimientos', group: 'Gestión' },
+  { segment: 'archivos', view: filesView, access: 'files', icon: 'folder', label: 'Archivos', group: 'Gestión' },
+  { segment: 'ajustes', view: settingsView, access: 'admin', icon: 'settings', label: 'Ajustes', group: 'Gestión' },
 ];
+// The phone bar only fits four links, taken in this order of preference; the rest go in the "Más" sheet.
+const MOBILE_BAR_PREFERENCE = ['caja', 'reparaciones', 'tickets', 'buscar', 'stock', 'facturas'];
 
 function canAccess(access) {
   const { modules } = state.settings;
@@ -87,9 +91,23 @@ function renderAuthScreen(status) {
 // ---- Layout
 const navLink = (route) => `<a href="#/${route.segment}" data-nav="${route.segment}">${icon(route.icon)}${route.label}</a>`;
 
+// The sidebar menu: each group title followed by the links this user can open.
+function groupedNavHtml(routes) {
+  return NAV_GROUPS.map(group => {
+    const links = routes.filter(route => route.group === group);
+    if (!links.length) return '';
+    return (group ? `<div class="sep">${group}</div>` : '') + links.map(navLink).join('');
+  }).join('');
+}
+
 function renderLayout() {
   const { shop, appearance } = state.settings;
   const links = ROUTES.filter(route => canAccess(route.access));
+  const mobileBar = MOBILE_BAR_PREFERENCE
+    .map(segment => links.find(route => route.segment === segment))
+    .filter(Boolean)
+    .slice(0, MOBILE_BAR_LINKS);
+  const mobileSheet = links.filter(route => !mobileBar.includes(route));
   const logo = shop.logo
     ? `<img src="${esc(shop.logo)}" alt="">`
     : `<span class="logo-fallback">${esc((shop.name || 'M')[0])}</span>`;
@@ -98,7 +116,7 @@ function renderLayout() {
     <div class="app">
       <aside class="sidebar">
         <div class="brand">${logo}<div><b>${esc(shop.name)}</b><small>Control de ventas</small></div></div>
-        <nav class="nav">${links.map(navLink).join('')}</nav>
+        <nav class="nav">${groupedNavHtml(links)}</nav>
         <div class="me">
           <b>${esc(state.user.name)}</b><span class="role-badge">${isAdmin() ? 'Administrador' : 'Trabajador'}</span>
           <div class="row" style="margin-top:10px;gap:4px">
@@ -111,11 +129,11 @@ function renderLayout() {
       </aside>
       <main class="main" id="view"></main>
       <nav class="mobile-bar">
-        ${links.slice(0, MOBILE_BAR_LINKS).map(navLink).join('')}
+        ${mobileBar.map(navLink).join('')}
         <a href="#" data-more>${icon('list')}Más</a>
       </nav>
       <div class="mobile-sheet hidden" data-sheet><div class="sheet-card">
-        ${links.slice(MOBILE_BAR_LINKS).map(navLink).join('')}
+        ${mobileSheet.map(navLink).join('')}
         <a href="#" data-change-password>${icon('key')}Cambiar contraseña</a>
         <a href="#" data-logout>${icon('logout')}Salir (${esc(state.user.name)})</a>
       </div></div>
