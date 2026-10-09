@@ -133,11 +133,13 @@ test('tickets and invoices use separate numbering, warranties and the VAT switch
   const invoice = await admin('POST', '/api/invoices', {
     kind: 'factura', replaces_id: ticket.data.id, show_vat: true,
     customer_name: 'Customer', customer_nif: 'X', customer_address: 'Street 1',
+    customer_postcode: '28001', customer_city: 'Madrid', customer_province: 'Madrid',
     items: [{ description: 'Funda', qty: 2, price: 6 }],
   });
   assert.equal(invoice.data.number, '1');
   const full = (await admin('GET', `/api/invoices/${invoice.data.id}`)).data;
   assert.deepEqual([full.show_vat, full.replaces_number], [true, 'T-1']);
+  assert.deepEqual([full.customer_postcode, full.customer_city, full.customer_province], ['28001', 'Madrid', 'Madrid']);
 
   assert.equal((await admin('GET', '/api/invoices?kind=ticket')).data.length, 1);
   await admin('POST', `/api/invoices/${invoice.data.id}/void`);

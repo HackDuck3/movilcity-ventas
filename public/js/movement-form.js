@@ -12,7 +12,7 @@ const TEXT = {
   expense: {
     newTitle: 'Nuevo gasto', editTitle: 'Editar gasto', save: 'Guardar gasto', saved: 'Gasto guardado',
     amount: 'Importe del gasto', search: 'Escribe el motivo del gasto y pulsa Enter…',
-    descriptionHint: 'ej.: 3 iPhone 13 al proveedor X', choose: 'Elige un motivo', missing: 'Elige el motivo del gasto',
+    descriptionHint: 'opcional: qué se compró y a quién', choose: 'Elige un motivo', missing: 'Elige el motivo del gasto',
   },
 };
 
@@ -45,6 +45,7 @@ export function mountMovementForm(container, options) {
   let selectedCategoryId = isEditing ? movement.category_id : null;
   let paymentMethod = isEditing ? movement.payment_method : salesConfig.payment_methods[0] || '';
   let lastEditedField = 'profit';
+  let showsAll = false;
 
   const initial = {
     amount: isEditing ? moneyInput(movement.amount) : '',
@@ -105,10 +106,12 @@ export function mountMovementForm(container, options) {
   const readMoney = (name) => (field(name) ? parseMoney(field(name).value) : NaN);
   const selectedCategory = () => categories.find(category => category.id === selectedCategoryId);
 
-  // Nothing typed: only the favourites (and the current choice). Typing shows the best matches.
+  const favorites = () => categories.filter(category => category.favorite || category.id === selectedCategoryId);
+
+  // Nothing typed: only the favourites (and the current choice), or everything on request. Typing shows the best matches.
   function suggestedCategories() {
     const query = search.value.trim().toLowerCase();
-    if (!query) return categories.filter(category => category.favorite || category.id === selectedCategoryId);
+    if (!query) return showsAll ? categories : favorites();
     const startsWithQuery = (category) => (category.name.toLowerCase().startsWith(query) ? 0 : 1);
     return categories
       .filter(category => category.name.toLowerCase().includes(query))
@@ -116,17 +119,23 @@ export function mountMovementForm(container, options) {
       .slice(0, MAX_SUGGESTIONS);
   }
 
+  // "Ver todos" appears only when some products are hidden behind the favourites.
+  function showAllButton() {
+    const hidden = categories.length - favorites().length;
+    if (search.value.trim() || !hidden) return '';
+    return `<button type="button" class="cat-more" data-show-all>${showsAll ? 'Ver solo favoritos' : `Ver todos (${categories.length})`}</button>`;
+  }
+
   function renderCategories() {
     const matches = suggestedCategories();
-    if (!matches.length) {
-      categoryGrid.innerHTML = search.value.trim()
-        ? `<span class="faint">No hay coincidencias. ${isAdmin() ? 'Puedes crear la categoría en Ajustes.' : ''}</span>`
-        : '<span class="faint">Empieza a escribir para ver sugerencias.</span>';
+    if (!matches.length && search.value.trim()) {
+      categoryGrid.innerHTML = `<span class="faint">No hay coincidencias. ${isAdmin() ? 'Puedes crear la categoría en Ajustes.' : ''}</span>`;
       return;
     }
     categoryGrid.innerHTML = matches.map(category => `
       <button type="button" class="cat-btn ${category.id === selectedCategoryId ? 'on' : ''}"
-              data-category="${category.id}" style="--c:${esc(category.color)}">${esc(category.name)}</button>`).join('');
+              data-category="${category.id}" style="--c:${esc(category.color)}">${esc(category.name)}</button>`).join('') + showAllButton()
+      || '<span class="faint">Empieza a escribir para ver sugerencias.</span>';
   }
 
   function selectCategory(id) {
@@ -210,6 +219,7 @@ export function mountMovementForm(container, options) {
 
   function resetForNextEntry() {
     selectedCategoryId = null;
+    showsAll = false;
     form.reset();
     search.value = '';
     renderCategories();
@@ -250,6 +260,10 @@ export function mountMovementForm(container, options) {
   container.addEventListener('keydown', (event) => { if (event.key === 'Escape') cancel(); });
   on(container, 'click', '[data-cancel]', cancel);
   on(container, 'click', '.cat-btn', (button) => selectCategory(Number(button.dataset.category)));
+  on(container, 'click', '[data-show-all]', () => {
+    showsAll = !showsAll;
+    renderCategories();
+  });
   on(container, 'click', '[data-save-and-make]', (button) => save(button.dataset.saveAndMake));
   on(container, 'click', '[data-method]', (button) => {
     paymentMethod = button.dataset.method;

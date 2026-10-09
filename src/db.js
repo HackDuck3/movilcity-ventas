@@ -97,6 +97,9 @@ CREATE TABLE IF NOT EXISTS invoices (
   customer_name    TEXT NOT NULL DEFAULT '',
   customer_nif     TEXT NOT NULL DEFAULT '',
   customer_address TEXT NOT NULL DEFAULT '',
+  customer_postcode TEXT NOT NULL DEFAULT '',
+  customer_city    TEXT NOT NULL DEFAULT '',
+  customer_province TEXT NOT NULL DEFAULT '',
   customer_phone   TEXT NOT NULL DEFAULT '',
   items            TEXT NOT NULL,
   subtotal         INTEGER NOT NULL,
@@ -247,6 +250,9 @@ function migrate() {
 
   if (!hasColumn('invoices', 'replaces_id')) db.exec('ALTER TABLE invoices ADD COLUMN replaces_id INTEGER');
   if (!hasColumn('invoices', 'show_vat')) db.exec('ALTER TABLE invoices ADD COLUMN show_vat INTEGER');
+  for (const column of ['customer_postcode', 'customer_city', 'customer_province']) {
+    if (!hasColumn('invoices', column)) db.exec(`ALTER TABLE invoices ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
+  }
   if (!hasColumn('repairs', 'device_type')) db.exec("ALTER TABLE repairs ADD COLUMN device_type TEXT NOT NULL DEFAULT 'phone'");
   if (!hasColumn('repairs', 'movement_id')) db.exec('ALTER TABLE repairs ADD COLUMN movement_id INTEGER');
   for (const [column, type] of [['ready_at', 'TEXT'], ['due_on', 'TEXT'], ['deposit', 'INTEGER'], ['deposit_movement_id', 'INTEGER']]) {

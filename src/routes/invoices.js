@@ -128,7 +128,9 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
   const date = isAdmin(user) && isDate(body.date) ? body.date : localDate();
   const customer = {
     name: str(body.customer_name, 120), nif: str(body.customer_nif, 30),
-    address: str(body.customer_address, 200), phone: str(body.customer_phone, 30),
+    address: str(body.customer_address, 200), postcode: str(body.customer_postcode, 12),
+    city: str(body.customer_city, 80), province: str(body.customer_province, 80),
+    phone: str(body.customer_phone, 30),
   };
   if (kind === 'factura' && (!customer.name || !customer.nif || !customer.address)) {
     fail(400, 'Una factura completa necesita nombre, NIF y dirección del cliente. Si no los tienes, haz un ticket.');
@@ -138,9 +140,11 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
 
   return tx(() => {
     const number = takeNextNumber(kind);
-    const { id } = run(`INSERT INTO invoices (number, kind, date, customer_name, customer_nif, customer_address, customer_phone,
-                        items, subtotal, discount, total, notes, user_id, replaces_id, show_vat) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      number, kind, date, customer.name, customer.nif, customer.address, customer.phone,
+    const { id } = run(`INSERT INTO invoices (number, kind, date, customer_name, customer_nif, customer_address, customer_postcode,
+                        customer_city, customer_province, customer_phone,
+                        items, subtotal, discount, total, notes, user_id, replaces_id, show_vat) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      number, kind, date, customer.name, customer.nif, customer.address, customer.postcode,
+      customer.city, customer.province, customer.phone,
       JSON.stringify(items), subtotal, discount, total, str(body.notes, 500), user.id,
       replacedTicket ? replacedTicket.id : null, showVat ? 1 : 0);
     if (!replacedTicket) linkToSale(id, body, { items, total, date }, user);

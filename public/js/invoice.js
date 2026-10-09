@@ -22,8 +22,17 @@ const lines = (parts) => parts.filter(Boolean).map(esc).join('<br>');
 const shopLines = (shop) =>
   lines([shop.legal_name, shop.nif && `NIF: ${shop.nif}`, shop.address1, shop.address2, shop.phone, shop.email]);
 
+// "28001 Madrid (Madrid)"; the province is left out when it repeats the town.
+function customerTown(inv) {
+  const town = [inv.customer_postcode, inv.customer_city].filter(Boolean).join(' ');
+  const province = inv.customer_province && inv.customer_province.toLowerCase() !== (inv.customer_city || '').toLowerCase()
+    ? inv.customer_province : '';
+  if (!province) return town;
+  return town ? `${town} (${province})` : province;
+}
+
 const customerLines = (inv) =>
-  lines([inv.customer_name, inv.customer_nif && `NIF: ${inv.customer_nif}`, inv.customer_address, inv.customer_phone]);
+  lines([inv.customer_name, inv.customer_nif && `NIF: ${inv.customer_nif}`, inv.customer_address, customerTown(inv), inv.customer_phone]);
 
 const documentTitle = (inv, cfg) =>
   (inv.kind === 'ticket' ? cfg.ticket_title || 'Ticket' : cfg.title || 'Factura');

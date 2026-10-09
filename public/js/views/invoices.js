@@ -194,7 +194,9 @@ async function initialDraft(params, kind) {
     return {
       sourceTicket,
       customer_name: sourceTicket.customer_name, customer_nif: sourceTicket.customer_nif,
-      customer_address: sourceTicket.customer_address, customer_phone: sourceTicket.customer_phone,
+      customer_address: sourceTicket.customer_address, customer_postcode: sourceTicket.customer_postcode,
+      customer_city: sourceTicket.customer_city, customer_province: sourceTicket.customer_province,
+      customer_phone: sourceTicket.customer_phone,
       items: sourceTicket.items.map(item => ({ ...item })),
       discount: sourceTicket.discount,
       notes: sourceTicket.notes,
@@ -212,7 +214,8 @@ async function initialDraft(params, kind) {
   };
   return {
     sourceTicket: null,
-    customer_name: '', customer_nif: '', customer_address: '', customer_phone: '',
+    customer_name: '', customer_nif: '', customer_address: '', customer_postcode: '',
+    customer_city: '', customer_province: '', customer_phone: '',
     items: [firstItem],
     discount: 0,
     notes: '',
@@ -257,9 +260,9 @@ async function renderEditor(root, params, kind) {
   // ---- markup
   const required = isFullInvoice ? ' <span class="neg">*</span>' : '';
   const customerHint = isFullInvoice ? '(obligatorios en una factura completa)' : '(opcional)';
-  const customerField = (name, label, isRequired) => `
-    <label class="field">${label}${isRequired ? required : ''}
-      <input type="text" name="${name}" value="${esc(draft[name])}">
+  const customerField = (name, label, isRequired, attributes = '') => `
+    <label class="field"><span>${label}${isRequired ? required : ''}</span>
+      <input type="text" name="${name}" value="${esc(draft[name] || '')}" ${attributes}>
     </label>`;
 
   const registerSaleBlock = `
@@ -313,8 +316,11 @@ async function renderEditor(root, params, kind) {
             <div class="settings-grid" style="margin-top:10px">
               ${customerField('customer_name', 'Nombre y apellidos / Empresa', true)}
               ${customerField('customer_nif', 'NIF / NIE / CIF', true)}
-              ${customerField('customer_address', 'Dirección completa', true)}
-              ${customerField('customer_phone', 'Teléfono', false)}
+              ${customerField('customer_address', 'Dirección (calle, número, piso)', true)}
+              ${customerField('customer_postcode', 'Código postal', false, 'inputmode="numeric" maxlength="12"')}
+              ${customerField('customer_city', 'Población', false)}
+              ${customerField('customer_province', 'Provincia', false)}
+              ${customerField('customer_phone', 'Teléfono', false, 'inputmode="tel"')}
             </div>
           </details>
           <div>
@@ -368,7 +374,7 @@ async function renderEditor(root, params, kind) {
     itemsContainer.innerHTML = draft.items.map((item, index) => `
       <div class="line" data-index="${index}">
         <div class="stack">
-          <input type="text" data-field="description" placeholder="Descripción (ej. Samsung Galaxy A16 128gb)" value="${esc(item.description)}">
+          <input type="text" data-field="description" placeholder="Descripción del producto o servicio" value="${esc(item.description)}">
           <input type="text" data-field="detail" placeholder="IMEI / nº de serie / detalle (opcional)" value="${esc(item.detail || '')}">
           <select data-field="warranty" title="Garantía de esta línea">${warrantyOptions(item.warranty || '')}</select>
         </div>
@@ -399,6 +405,9 @@ async function renderEditor(root, params, kind) {
       customer_name: form.elements.customer_name.value,
       customer_nif: form.elements.customer_nif.value,
       customer_address: form.elements.customer_address.value,
+      customer_postcode: form.elements.customer_postcode.value,
+      customer_city: form.elements.customer_city.value,
+      customer_province: form.elements.customer_province.value,
       customer_phone: form.elements.customer_phone.value,
       notes: form.elements.notes.value,
       show_vat: form.elements.show_vat.checked,
@@ -483,7 +492,9 @@ async function renderEditor(root, params, kind) {
       kind, ...link,
       date: invoice.date,
       customer_name: invoice.customer_name, customer_nif: invoice.customer_nif,
-      customer_address: invoice.customer_address, customer_phone: invoice.customer_phone,
+      customer_address: invoice.customer_address, customer_postcode: invoice.customer_postcode,
+      customer_city: invoice.customer_city, customer_province: invoice.customer_province,
+      customer_phone: invoice.customer_phone,
       items: invoice.items.filter(item => item.description.trim()),
       discount: invoice.discount,
       notes: invoice.notes,
