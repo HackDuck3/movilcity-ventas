@@ -23,12 +23,13 @@ Se instala en un servidor propio (Umbrel, Docker o una Raspberry Pi) y se usa de
 | Sección | Para qué sirve |
 |---|---|
 | **Caja** | Apuntar ventas y gastos del día en segundos. Se escribe el producto, el precio y el coste o el beneficio; el resto se calcula. |
-| **Tickets y facturas** | Factura simplificada (ticket) y factura completa, cada una con su numeración. Tres diseños a elegir, garantía por tipo de producto, IVA desglosado opcional y conversión de ticket en factura. |
-| **Reparaciones** | De móviles y de portátiles. Resguardo con los datos del equipo, las averías, la fecha prevista y la señal. Seguimiento *en reparación → lista → recogida*, aviso por WhatsApp y cobro en caja al entregar. |
+| **Tickets y facturas** | Factura simplificada (ticket) y factura completa, cada una con su numeración. Tres diseños a elegir, garantía por tipo de producto, IVA desglosado opcional, conversión de ticket en factura y devoluciones con su documento rectificativo. |
+| **Reparaciones** | De móviles y de portátiles. Resguardo con los datos del equipo, las averías, la fecha prevista, la señal y el coste de la pieza. Seguimiento *en reparación → lista → recogida*, aviso por WhatsApp y cobro en caja al entregar. |
+| **Clientes** | Se guardan solos al hacer una factura o una reparación. Al escribir un nombre o un teléfono se rellenan sus datos, y su ficha reúne todo lo que ha comprado y reparado. |
 | **Stock** | Alta de cada móvil con su IMEI y su coste. Al venderlo, el beneficio se calcula solo. |
 | **Compras** | Compra de móviles usados a particulares, con contrato para firmar, foto del documento de identidad y registro exportable. |
 | **Buscar** | Una sola caja para tickets, facturas, reparaciones, stock, compras y movimientos. |
-| **Panel** | Ventas, beneficio y gastos por día, mes o año, comparados con el periodo anterior. Solo para administradores. |
+| **Panel** | Ventas, beneficio y gastos por día, mes o año, comparados con el periodo anterior, y un resumen trimestral para la gestoría. Solo para administradores. |
 | **Movimientos** | Historial completo: filtrar, corregir, recuperar borrados y exportar a CSV. |
 | **Comunicados** | Políticas, tarifas y avisos de la tienda: se escriben una vez, con títulos, listas y tablas, y se imprimen con el diseño de los demás documentos. |
 | **Archivos** | Documentos de la tienda (contratos, albaranes, impuestos) ordenados en carpetas. |
@@ -119,9 +120,10 @@ Todo se guarda en una carpeta de datos (`data/`, o el volumen `/data` en Docker 
 | `backups/` | Una copia diaria de la base de datos; se conservan 30 |
 
 - *Ajustes → Datos y copias* descarga una copia de la base de datos. No incluye `files/` ni `id-documents/`.
+- *Ajustes → Datos y copias → Copia completa cifrada* genera un único archivo con todo, protegido con contraseña, para guardarlo fuera del servidor. Otro ordenador puede recogerlo cada día: [docs/COPIAS.md](docs/COPIAS.md).
 - En Umbrel, las copias de seguridad de la app incluyen la carpeta completa.
 - *Ajustes → Datos y copias* también exporta los movimientos a CSV e importa ventas y gastos desde un CSV con las columnas `fecha; categoria; importe` (y opcionalmente `tipo`, `beneficio`, `descripcion`, `metodo_pago`).
-- *Ajustes → Datos y copias → Empezar de cero* borra los registros hechos durante las pruebas (ventas, documentos, reparaciones, stock, compras) y conserva ajustes, usuarios, productos y comunicados. Antes guarda una copia en `backups/`.
+- *Ajustes → Datos y copias → Empezar de cero* borra los registros hechos durante las pruebas (ventas, documentos, reparaciones, clientes, stock, compras) y conserva ajustes, usuarios, productos y comunicados. Antes guarda una copia en `backups/`.
 - Para restaurar: detén la aplicación, sustituye `ventas.db` por la copia, borra `ventas.db-wal` y `ventas.db-shm` si existen y arranca de nuevo.
 
 La carpeta de datos está excluida del repositorio por `.gitignore`.
@@ -131,6 +133,8 @@ La carpeta de datos está excluida del repositorio por `.gitignore`.
 Esta aplicación es una herramienta de gestión. No sustituye al asesoramiento de una gestoría.
 
 - **Facturación**: no es un programa de facturación certificado según el reglamento VeriFactu, cuya entrada en vigor para autónomos está prevista para julio de 2027.
+- **Devoluciones**: el documento rectificativo lleva serie propia y cita el documento que corrige, pero su contenido no ha sido revisado por un asesor fiscal.
+- **Resumen trimestral**: es una ayuda para la gestoría, no una declaración. Calcula la base y el IVA a partir del total con el tipo configurado.
 - **IVA**: el régimen aplicable (recargo de equivalencia, bienes usados) cambia lo que debe figurar en una factura. La aplicación permite desglosar o no el IVA, pero no decide cuál corresponde.
 - **Compra de objetos usados**: la Ley Orgánica 4/2015, de protección de la seguridad ciudadana, impone obligaciones de registro documental a quien comercia con objetos usados. El registro de compras exportable recoge los datos habituales; el procedimiento concreto lo indica la comisaría correspondiente.
 - **Contrato de compraventa y condiciones de reparación**: los textos incluidos son borradores editables, no revisados por un abogado.

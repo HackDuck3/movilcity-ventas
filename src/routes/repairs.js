@@ -5,6 +5,7 @@ const { getSetting, setSetting } = require('../settings');
 const { route, fail } = require('../http');
 const { cents, euros, localDate, addDays, isDate, str } = require('../utils');
 const { recordSale } = require('./movements');
+const { linkRepair } = require('../customers');
 
 const REPAIR_SELECT = 'SELECT r.*, u.name AS user_name FROM repairs r LEFT JOIN users u ON u.id = r.user_id';
 const PATTERN_FORMAT = /^[1-9](-[1-9]){0,8}$/;
@@ -38,6 +39,7 @@ function toResponse(repair) {
     faults: JSON.parse(repair.faults),
     amount: eurosOrNull(repair.amount),
     deposit: eurosOrNull(repair.deposit),
+    part_cost: eurosOrNull(repair.part_cost),
   };
 }
 
@@ -65,11 +67,13 @@ function fieldsFromBody(body) {
     amount: cents(body.amount),
     deposit: cents(body.deposit) || null,
     due_on: isDate(body.due_on) ? body.due_on : null,
+    part_cost: cents(body.part_cost),
   };
   if (!fields.brand && !fields.model) fail(400, 'Indica la marca o el modelo');
   if (!fields.customer_name && !fields.customer_phone) fail(400, 'Indica el nombre o el teléfono del cliente');
   if (fields.faults === '[]' && !fields.notes) fail(400, 'Marca al menos una reparación o descríbela en "Otros"');
   if (fields.amount !== null && fields.amount < 0) fail(400, 'El importe no puede ser negativo');
+  if (fields.part_cost !== null && fields.part_cost < 0) fail(400, 'El coste de la pieza no puede ser negativo');
   if (fields.deposit !== null && fields.deposit < 0) fail(400, 'La señal no puede ser negativa');
   if (fields.deposit !== null && fields.amount !== null && fields.deposit > fields.amount) fail(400, 'La señal no puede superar el importe');
   return fields;
@@ -139,10 +143,11 @@ route('POST', '/api/repairs', 'user', ({ user, body }) => {
   return tx(() => {
     const number = takeNextNumber();
     const { id } = run(`INSERT INTO repairs (number, date, device_type, customer_name, customer_nif, customer_phone, brand, model, imei, carrier,
-                        unlock_code, pattern, faults, notes, condition, amount, deposit, due_on, user_id)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                        unlock_code, pattern, faults, notes, condition, amount, deposit, due_on, part_cost, user_id)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       number, date, f.device_type, f.customer_name, f.customer_nif, f.customer_phone, f.brand, f.model, f.imei, f.carrier,
-      f.unlock_code, f.pattern, f.faults, f.notes, f.condition, f.amount, f.deposit, f.due_on, user.id);
+      f.unlock_code, f.pattern, f.faults, f.notes, f.condition, f.amount, f.deposit, f.due_on, f.part_cost, user.id);
+    linkRepair(id);
     if (f.deposit && body.register_deposit) registerDeposit({ ...f, id, number }, body.register_deposit, user);
     return { ok: true, id, number };
   });
@@ -156,9 +161,10 @@ route('PUT', '/api/repairs/:id', 'user', ({ user, params, body }) => {
   // Once the deposit is in the register its amount is fixed, so both always agree.
   const deposit = repair.deposit_movement_id ? repair.deposit : f.deposit;
   run(`UPDATE repairs SET device_type=?, customer_name=?, customer_nif=?, customer_phone=?, brand=?, model=?, imei=?, carrier=?,
-       unlock_code=?, pattern=?, faults=?, notes=?, condition=?, amount=?, deposit=?, due_on=? WHERE id=?`,
+       unlock_code=?, pattern=?, faults=?, notes=?, condition=?, amount=?, deposit=?, due_on=?, part_cost=? WHERE id=?`,
     f.device_type, f.customer_name, f.customer_nif, f.customer_phone, f.brand, f.model, f.imei, f.carrier,
-    f.unlock_code, f.pattern, f.faults, f.notes, f.condition, f.amount, deposit, f.due_on, repair.id);
+    f.unlock_code, f.pattern, f.faults, f.notes, f.condition, f.amount, deposit, f.due_on, f.part_cost, repair.id);
+  linkRepair(repair.id);
   return { ok: true };
 });
 

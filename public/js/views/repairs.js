@@ -4,6 +4,7 @@ import {
 } from '../core.js';
 import { repairReceipt, repairSheet, DEVICE_TYPES, deviceTypeOf } from '../repair-receipt.js';
 import { printDocument } from '../invoice.js';
+import { attachCustomerPicker } from '../customer-picker.js';
 
 const SECTION = '#/reparaciones';
 const FILTERS = [['pending', 'En reparación'], ['ready', 'Listas para recoger'], ['forgotten', 'Olvidadas'], ['collected', 'Recogidas'], ['', 'Todas']];
@@ -15,7 +16,7 @@ const STAGE_BADGES = {
 const PATTERN_DOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export function repairsView(root, params, sub) {
-  if (sub === 'nueva') return renderEditor(root, null);
+  if (sub === 'nueva') return renderEditor(root, null, params);
   if (sub && params.get('editar') === '1') return renderEditor(root, Number(sub));
   if (sub) return renderDetail(root, Number(sub));
   return renderList(root);
@@ -219,6 +220,9 @@ function openCollectDialog(repair, setStatus) {
   const repairCategory = saleCategories.find(category => category.name.toLowerCase().startsWith('reparaci'));
   const asksPaymentMethod = modules.payment_methods && sales.ask_payment_method;
   const deposit = repair.deposit || 0;
+  const knowsPartCost = repair.part_cost != null;
+  // With the cost of the part on file the profit is worked out: everything charged minus the part.
+  const profitFor = (charged) => (knowsPartCost && Number.isFinite(charged) ? moneyInput(charged + deposit - repair.part_cost) : '');
 
   modal({
     title: `Entregar reparación ${repair.number}`,
@@ -232,8 +236,8 @@ function openCollectDialog(repair, setStatus) {
           ${deposit ? `<span class="hint">ya dejó ${money(deposit)} de señal</span>` : ''}
           <input class="money" name="amount" inputmode="decimal" placeholder="0,00" value="${repair.amount == null ? '' : moneyInput(repair.amount - deposit)}">
         </label>
-        <label class="field">Beneficio (€) <span class="hint">de toda la reparación: importe total menos piezas</span>
-          <input class="money" name="profit" inputmode="decimal" placeholder="0,00">
+        <label class="field">Beneficio (€) <span class="hint">${knowsPartCost ? `importe total menos la pieza (${money(repair.part_cost)})` : 'de toda la reparación: importe total menos piezas'}</span>
+          <input class="money" name="profit" inputmode="decimal" placeholder="0,00" value="${repair.amount == null ? '' : profitFor(repair.amount - deposit)}">
         </label>
         <label class="field">Producto
           <select name="category">
@@ -247,8 +251,14 @@ function openCollectDialog(repair, setStatus) {
       </form>`,
     foot: `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" data-ok>${icon('check')} Marcar como recogida</button>`,
     onMount: (dialog, close) => {
+      const collectFields = dialog.querySelector('[data-collect-form]').elements;
+      let profitTyped = false;
+      collectFields.profit.addEventListener('input', () => { profitTyped = true; });
+      collectFields.amount.addEventListener('input', () => {
+        if (knowsPartCost && !profitTyped) collectFields.profit.value = profitFor(parseMoney(collectFields.amount.value));
+      });
       dialog.querySelector('[data-ok]').onclick = async () => {
-        const fields = dialog.querySelector('[data-collect-form]').elements;
+        const fields = collectFields;
         if (!fields.register.checked) {
           if (await setStatus('collected')) close();
           return;
@@ -272,14 +282,17 @@ function openCollectDialog(repair, setStatus) {
 }
 
 // ---- Editor (new or existing)
-async function renderEditor(root, id) {
+async function renderEditor(root, id, params) {
   const existing = id ? await tryApi(`/repairs/${id}`) : null;
   if (id && !existing) return;
+  // Opened from a customer's page (?cliente=).
+  const customer = (!id && params?.get('cliente') && await tryApi(`/customers/${Number(params.get('cliente'))}`)) || {};
   const config = state.settings.repairs;
   const repair = existing || {
     device_type: 'phone',
-    customer_name: '', customer_nif: '', customer_phone: '', brand: '', model: '', imei: '', carrier: '',
-    unlock_code: '', pattern: '', faults: [], notes: '', condition: '', amount: null, deposit: null, due_on: '',
+    customer_name: customer.name || '', customer_nif: customer.nif || '', customer_phone: customer.phone || '',
+    brand: '', model: '', imei: '', carrier: '',
+    unlock_code: '', pattern: '', faults: [], notes: '', condition: '', amount: null, deposit: null, due_on: '', part_cost: null,
   };
   // A deposit already in the cash register cannot be changed from here.
   const depositIsRegistered = !!repair.deposit_movement_id;
@@ -325,6 +338,9 @@ async function renderEditor(root, id) {
           <label class="field">Importe (€) <span class="hint">déjalo vacío si aún no hay presupuesto</span>
             <input class="money" name="amount" inputmode="decimal" placeholder="0,00" value="${repair.amount == null ? '' : moneyInput(repair.amount)}">
           </label>
+          <label class="field">Coste de la pieza (€) <span class="hint">para calcular el beneficio; no sale en el resguardo</span>
+            <input class="money" name="part_cost" inputmode="decimal" placeholder="0,00" value="${repair.part_cost == null ? '' : moneyInput(repair.part_cost)}">
+          </label>
           <label class="field">Entrega prevista <span class="hint">opcional</span>
             <input type="date" name="due_on" value="${esc(repair.due_on || '')}">
           </label>
@@ -347,6 +363,7 @@ async function renderEditor(root, id) {
     </form>`;
 
   const form = root.querySelector('[data-form]');
+  attachCustomerPicker(form, { name: 'customer_name', nif: 'customer_nif', phone: 'customer_phone' });
 
   // The device fields and the list of usual repairs depend on the kind of device, so they are drawn apart
   // and drawn again when the kind changes.
@@ -391,6 +408,7 @@ async function renderEditor(root, id) {
   function readForm() {
     const amount = parseMoney(form.elements.amount.value);
     const deposit = parseMoney(form.elements.deposit.value);
+    const partCost = parseMoney(form.elements.part_cost.value);
     const text = (name) => form.elements[name]?.value ?? '';
     const device = deviceTypeOf(repair);
     const registersDeposit = form.elements.register_deposit?.checked && deposit > 0;
@@ -407,6 +425,7 @@ async function renderEditor(root, id) {
       pattern: device.hasPattern ? pattern.join('-') : '',
       faults: [...form.querySelectorAll('[name=fault]:checked')].map(checkbox => checkbox.value),
       amount: Number.isFinite(amount) ? amount : null,
+      part_cost: Number.isFinite(partCost) ? partCost : null,
     };
   }
 

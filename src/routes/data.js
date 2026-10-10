@@ -133,7 +133,7 @@ route('GET', '/api/admin/backup', 'admin', ({ res }) => {
 // ---- Starting over
 // Removes everything recorded while trying the app out and keeps what was set up: users, products,
 // settings and notices. A snapshot is saved first, next to the daily backups.
-const RECORD_TABLES = ['purchases', 'devices', 'repairs', 'movements', 'invoices']; // in an order foreign keys allow
+const RECORD_TABLES = ['purchases', 'devices', 'repairs', 'movements', 'invoices', 'customers']; // in an order foreign keys allow
 const RESET_WORD = 'BORRAR';
 
 function emptyFolder(folder) {
@@ -150,7 +150,7 @@ route('POST', '/api/admin/reset', 'admin', ({ body }) => {
       run(`DELETE FROM ${table}`);
       run('DELETE FROM sqlite_sequence WHERE name = ?', table);
     }
-    setSetting('invoice', { ...getSetting('invoice'), next_number: 1, ticket_next_number: 1 });
+    setSetting('invoice', { ...getSetting('invoice'), next_number: 1, ticket_next_number: 1, refund_next_number: 1 });
     setSetting('repairs', { ...getSetting('repairs'), next_number: 1 });
     setSetting('purchases', { ...getSetting('purchases'), next_number: 1 });
   });

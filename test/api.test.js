@@ -322,6 +322,101 @@ test('settings are validated and saved', async () => {
   assert.equal((await admin('PUT', '/api/admin/settings/nope', {})).status, 404);
 });
 
+test('customers are remembered from repairs and invoices, and completed over time', async () => {
+  const repair = await admin('POST', '/api/repairs', {
+    model: 'Phone', customer_name: 'Ana Test', customer_phone: '699 111 222', notes: 'Screen', amount: 80, part_cost: 30,
+  });
+  assert.equal((await admin('GET', `/api/repairs/${repair.data.id}`)).data.part_cost, 30);
+  await admin('POST', '/api/invoices', {
+    kind: 'factura', customer_name: 'Ana Test', customer_nif: 'Z9', customer_phone: '699111222',
+    customer_address: 'Street 2', customer_city: 'Getafe', items: [{ description: 'Funda', price: 9 }],
+  });
+
+  const found = (await admin('GET', '/api/customers?q=699111')).data;
+  assert.equal(found.length, 1);
+  assert.deepEqual([found[0].nif, found[0].city], ['Z9', 'Getafe']);
+  const customer = (await admin('GET', `/api/customers/${found[0].id}`)).data;
+  assert.deepEqual([customer.invoices.length, customer.repairs.length], [1, 1]);
+
+  // The same phone with another NIF is somebody else.
+  await admin('POST', '/api/invoices', {
+    kind: 'factura', customer_name: 'Luis Test', customer_nif: 'Y8', customer_phone: '699111222',
+    customer_address: 'Street 3', items: [{ description: 'Funda', price: 9 }],
+  });
+  assert.equal((await admin('GET', '/api/customers?q=699111')).data.length, 2);
+
+  assert.equal((await admin('PUT', `/api/customers/${customer.id}`, { name: 'Ana Test', phone: '699111222', notes: 'VIP' })).status, 200);
+  assert.equal((await admin('GET', '/api/search?q=Ana Test')).data.customers.length, 1);
+  assert.equal((await admin('POST', '/api/customers', { name: 'Dup', nif: 'y8' })).status, 400);
+});
+
+test('a refund returns part of a ticket, in its own series, and takes the money out of the register', async () => {
+  const sale = (await admin('GET', '/api/categories')).data.find(c => c.kind === 'sale');
+  const ticket = await admin('POST', '/api/invoices', {
+    kind: 'ticket', discount: 2,
+    items: [{ description: 'Funda', qty: 2, price: 6 }, { description: 'Cable', price: 8 }],
+    register: { category_id: sale.id, profit: 10, payment_method: 'Efectivo' },
+  });
+  const salesBefore = (await admin('GET', '/api/day')).data.totals;
+
+  const refund = await admin('POST', `/api/invoices/${ticket.data.id}/refund`, {
+    items: [{ line: 0, qty: 1 }], reason: 'Defective', register: { payment_method: 'Efectivo' },
+  });
+  assert.equal(refund.data.number, 'R-1');
+  const document = (await admin('GET', `/api/invoices/${refund.data.id}`)).data;
+  assert.deepEqual([document.total, document.items[0].qty, document.rectifies_number], [-5.4, -1, ticket.data.number]);
+
+  const day = (await admin('GET', '/api/day')).data;
+  assert.deepEqual([day.sales.at(-1).amount, day.sales.at(-1).profit], [-5.4, -3]);
+  assert.equal(day.totals.sales_count, salesBefore.sales_count);
+  assert.equal(Math.round((salesBefore.sales - day.totals.sales) * 100), 540);
+
+  const original = (await admin('GET', `/api/invoices/${ticket.data.id}`)).data;
+  assert.deepEqual([original.refunds.length, original.refunded_qty[0]], [1, 1]);
+  assert.equal((await admin('POST', `/api/invoices/${ticket.data.id}/refund`, { items: [{ line: 0, qty: 2 }] })).status, 400);
+  assert.equal((await admin('POST', `/api/invoices/${refund.data.id}/refund`, { items: [{ line: 0, qty: 1 }] })).status, 400);
+});
+
+test('the quarterly summary splits what was issued into base and VAT', async () => {
+  const ticket = await admin('POST', '/api/invoices', { kind: 'ticket', items: [{ description: 'Exchanged', price: 20 }] });
+  await admin('POST', '/api/invoices', {
+    kind: 'factura', replaces_id: ticket.data.id, customer_name: 'Customer', customer_nif: 'X', customer_address: 'Street 1',
+    items: [{ description: 'Exchanged', price: 20 }],
+  });
+  const { data } = await admin('GET', '/api/admin/quarter');
+  assert.ok(data.issued.all.count >= 3);
+  assert.equal(Math.round((data.issued.all.base + data.issued.all.vat) * 100), Math.round(data.issued.all.total * 100));
+  assert.equal(data.issued.all.count, data.issued.tickets.count + data.issued.invoices.count);
+  assert.ok(data.documents.some(document => document.is_refund && document.total < 0));
+  // A ticket exchanged for an invoice is not counted twice.
+  assert.ok(!data.documents.some(document => document.number === ticket.data.number));
+  const csv = (await admin('GET', '/api/admin/quarter/documentos.csv')).data.toString('utf8');
+  assert.match(csv, /^﻿fecha;numero;tipo/);
+});
+
+test('the full copy is encrypted, can be fetched with a token and opens with its password', async () => {
+  assert.equal((await admin('GET', '/api/admin/backup/full')).status, 400);
+  assert.equal((await admin('PUT', '/api/admin/backup/settings', { passphrase: 'short' })).status, 400);
+  const { data: status } = await admin('PUT', '/api/admin/backup/settings', { passphrase: 'correct horse battery' });
+  assert.ok(status.has_passphrase && status.token.length >= 32);
+  assert.equal((await admin('GET', '/api/me')).data.settings['secret:backup'], undefined);
+
+  const outsider = client();
+  assert.equal((await outsider('GET', '/api/backup/full', undefined, { Authorization: 'Bearer wrong' })).status, 401);
+  const copy = await outsider('GET', '/api/backup/full', undefined, { Authorization: `Bearer ${status.token}` });
+  assert.equal(copy.status, 200);
+  assert.ok(!copy.data.includes('SQLite format 3'));
+
+  const { restoreArchive } = require('../src/full-backup');
+  const file = path.join(dataDir, 'copy.mcbackup');
+  const restored = path.join(dataDir, 'restored');
+  fs.writeFileSync(file, copy.data);
+  assert.throws(() => restoreArchive(file, 'wrong password', restored), /Contraseña incorrecta/);
+  assert.ok(restoreArchive(file, 'correct horse battery', restored).includes('ventas.db'));
+  assert.equal(fs.readFileSync(path.join(restored, 'ventas.db')).subarray(0, 15).toString(), 'SQLite format 3');
+  assert.ok((await admin('GET', '/api/admin/backup/status')).data.last_fetched_at);
+});
+
 test('workers are limited by permissions', async () => {
   await admin('POST', '/api/admin/users', { username: 'worker', name: 'Worker', password: '1234' });
   assert.equal((await worker('POST', '/api/login', { username: 'worker', password: '1234' })).status, 200);
@@ -334,6 +429,9 @@ test('workers are limited by permissions', async () => {
   const expense = (await worker('GET', '/api/categories')).data.find(c => c.kind === 'expense');
   assert.equal((await worker('POST', '/api/movements', { type: 'expense', category_id: expense.id, amount: 3 })).status, 403);
   assert.equal((await worker('GET', '/api/purchases')).status, 403);
+  assert.equal((await worker('POST', '/api/invoices/1/refund', { items: [{ line: 0, qty: 1 }] })).status, 403);
+  assert.equal((await worker('GET', '/api/admin/quarter')).status, 403);
+  assert.equal((await worker('GET', '/api/customers')).status, 200);
   assert.equal((await worker('GET', '/api/notices')).status, 200);
   assert.equal((await worker('POST', '/api/admin/notices', { title: 'x' })).status, 403);
   assert.equal((await worker('GET', '/api/admin/purchases/1/id-document')).status, 403);
@@ -345,7 +443,7 @@ test('workers are limited by permissions', async () => {
 
 test('statistics, CSV export and import', async () => {
   const stats = (await admin('GET', '/api/admin/stats')).data;
-  assert.equal(stats.totals.sales, 337);
+  assert.equal(stats.totals.sales, 349.6);
   assert.equal((await admin('GET', '/api/admin/year')).data.months.length, 12);
   assert.ok((await admin('GET', '/api/admin/movements')).data.length >= 3);
 
@@ -377,7 +475,7 @@ test('starting over removes the records and keeps the set-up', async () => {
 
   const day = (await admin('GET', '/api/day')).data;
   assert.deepEqual([day.sales.length, day.expenses.length], [0, 0]);
-  for (const list of ['/api/invoices', '/api/repairs', '/api/stock', '/api/purchases']) {
+  for (const list of ['/api/invoices', '/api/repairs', '/api/stock', '/api/purchases', '/api/customers']) {
     assert.equal((await admin('GET', list)).data.length, 0, list);
   }
   const settings = (await admin('GET', '/api/me')).data.settings;

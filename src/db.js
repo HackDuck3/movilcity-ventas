@@ -86,6 +86,22 @@ CREATE TABLE IF NOT EXISTS movements (
 CREATE INDEX IF NOT EXISTS idx_mov_date ON movements(date);
 CREATE INDEX IF NOT EXISTS idx_mov_type_date ON movements(type, date);
 
+-- People the shop has made an invoice or a repair for. Documents keep their own copy of the details
+-- they were issued with and point here through customer_id.
+CREATE TABLE IF NOT EXISTS customers (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL DEFAULT '',
+  nif        TEXT NOT NULL DEFAULT '',
+  phone      TEXT NOT NULL DEFAULT '',
+  address    TEXT NOT NULL DEFAULT '',
+  postcode   TEXT NOT NULL DEFAULT '',
+  city       TEXT NOT NULL DEFAULT '',
+  province   TEXT NOT NULL DEFAULT '',
+  notes      TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 -- kind 'factura' is a full invoice, 'ticket' a simplified one.
 -- items is JSON: [{ description, detail, qty, price, warranty, warranty_text }].
 -- replaces_id links a full invoice to the ticket it replaces.
@@ -110,7 +126,9 @@ CREATE TABLE IF NOT EXISTS invoices (
   created_at       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   voided           INTEGER NOT NULL DEFAULT 0,
   replaces_id      INTEGER,
-  show_vat         INTEGER
+  show_vat         INTEGER,
+  customer_id      INTEGER,
+  rectifies_id     INTEGER -- set on a refund: the document it corrects. Its quantities and totals are negative.
 );
 CREATE INDEX IF NOT EXISTS idx_inv_kind ON invoices(kind, id);
 
@@ -146,7 +164,9 @@ CREATE TABLE IF NOT EXISTS repairs (
   ready_at       TEXT,
   due_on         TEXT,
   deposit        INTEGER,
-  deposit_movement_id INTEGER REFERENCES movements(id)
+  deposit_movement_id INTEGER REFERENCES movements(id),
+  part_cost      INTEGER, -- what the spare part cost the shop; never printed
+  customer_id    INTEGER
 );
 
 -- Phones in stock. Selling one creates a sale movement with profit = price - cost.
@@ -253,9 +273,12 @@ function migrate() {
   for (const column of ['customer_postcode', 'customer_city', 'customer_province']) {
     if (!hasColumn('invoices', column)) db.exec(`ALTER TABLE invoices ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
   }
+  for (const column of ['customer_id', 'rectifies_id']) {
+    if (!hasColumn('invoices', column)) db.exec(`ALTER TABLE invoices ADD COLUMN ${column} INTEGER`);
+  }
   if (!hasColumn('repairs', 'device_type')) db.exec("ALTER TABLE repairs ADD COLUMN device_type TEXT NOT NULL DEFAULT 'phone'");
   if (!hasColumn('repairs', 'movement_id')) db.exec('ALTER TABLE repairs ADD COLUMN movement_id INTEGER');
-  for (const [column, type] of [['ready_at', 'TEXT'], ['due_on', 'TEXT'], ['deposit', 'INTEGER'], ['deposit_movement_id', 'INTEGER']]) {
+  for (const [column, type] of [['ready_at', 'TEXT'], ['due_on', 'TEXT'], ['deposit', 'INTEGER'], ['deposit_movement_id', 'INTEGER'], ['part_cost', 'INTEGER'], ['customer_id', 'INTEGER']]) {
     if (!hasColumn('repairs', column)) db.exec(`ALTER TABLE repairs ADD COLUMN ${column} ${type}`);
   }
   if (!hasColumn('categories', 'warranty')) {
@@ -339,5 +362,5 @@ function backupBeforeReset() {
 const backupToTemp = () => snapshotTo(path.join(DATA_DIR, `export-${Date.now()}.db`));
 
 module.exports = {
-  db, all, get, run, tx, backup, backupToTemp, backupBeforeReset, DB_PATH, DATA_DIR, FILES_DIR, ID_DOCUMENTS_DIR,
+  db, all, get, run, tx, once, backup, backupToTemp, backupBeforeReset, DB_PATH, DATA_DIR, FILES_DIR, ID_DOCUMENTS_DIR,
 };

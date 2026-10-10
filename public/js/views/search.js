@@ -7,6 +7,12 @@ const REPAIR_STAGES = { pending: 'En reparación', ready: 'Lista para recoger', 
 // How each group of results is titled and where each result links to.
 const SECTIONS = [
   {
+    key: 'customers', title: 'Clientes', icon: 'users',
+    url: (customer) => `#/clientes/${customer.id}`,
+    label: () => 'Cliente',
+    note: () => '',
+  },
+  {
     key: 'repairs', title: 'Reparaciones', icon: 'wrench',
     url: (repair) => `#/reparaciones/${repair.id}`,
     label: (repair) => `Reparación ${repair.number}`,

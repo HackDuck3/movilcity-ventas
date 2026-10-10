@@ -163,6 +163,7 @@ const DEFAULT_SETTINGS = {
     worker_create_invoices: true,
     worker_create_repairs: true,
     worker_create_purchases: false, // buying used phones from customers
+    worker_refund: false,           // returning a sale and giving the money back
     worker_edit_minutes: 15, // 0 = workers can never edit their own entries
     worker_history_days: 0,  // 0 = workers only see today
   },
@@ -178,6 +179,8 @@ const DEFAULT_SETTINGS = {
     prefix: '',
     ticket_next_number: 1,
     ticket_prefix: 'T-',
+    refund_next_number: 1,   // refunds (rectifying documents) have their own series
+    refund_prefix: 'R-',
     title: 'Factura',
     ticket_title: 'Factura simplificada',
     warranties: WARRANTIES,
@@ -215,6 +218,7 @@ const DEFAULT_SETTINGS = {
     repairs: true,
     stock: true,
     purchases: true,
+    customers: true,
     notices: true,
     payment_methods: true,
     files: true,

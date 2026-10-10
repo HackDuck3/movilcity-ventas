@@ -7,7 +7,8 @@ const { euros, pad, localDate, addDays, dateRange } = require('../utils');
 const DAY_MS = 86400e3;
 
 function totalsFor(from, to) {
-  const sales = get(`SELECT COUNT(*) AS count, COALESCE(SUM(amount),0) AS amount, COALESCE(SUM(profit),0) AS profit
+  // Refunds are sales with a negative amount: they lower the totals but are not counted as sales.
+  const sales = get(`SELECT COALESCE(SUM(amount > 0),0) AS count, COALESCE(SUM(amount),0) AS amount, COALESCE(SUM(profit),0) AS profit
                      FROM movements WHERE type='sale' AND deleted_at IS NULL AND date BETWEEN ? AND ?`, from, to);
   const expenses = get(`SELECT COALESCE(SUM(m.amount),0) AS total,
                                COALESCE(SUM(CASE WHEN c.expense_type='stock' THEN m.amount ELSE 0 END),0) AS stock,
@@ -41,7 +42,7 @@ route('GET', '/api/admin/stats', 'admin', ({ query }) => {
         COALESCE(SUM(CASE WHEN type='sale' THEN amount END),0) AS sales,
         COALESCE(SUM(CASE WHEN type='sale' THEN profit END),0) AS profit,
         COALESCE(SUM(CASE WHEN type='expense' THEN amount END),0) AS expenses,
-        SUM(CASE WHEN type='sale' THEN 1 ELSE 0 END) AS n
+        SUM(CASE WHEN type='sale' AND amount > 0 THEN 1 ELSE 0 END) AS n
       FROM movements WHERE deleted_at IS NULL AND date BETWEEN ? AND ? GROUP BY date ORDER BY date`, from, to)
     .map(withEuros('sales', 'profit', 'expenses'));
 

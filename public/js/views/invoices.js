@@ -1,8 +1,9 @@
 // Tickets (simplified invoices) and full invoices: two sections, each with its own number series.
 import {
   api, state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, moneyInput,
-  confirmDialog, debounce, on, redrawOnResize, reloadView, tryApi,
+  confirmDialog, modal, can, debounce, on, redrawOnResize, reloadView, tryApi,
 } from '../core.js';
+import { attachCustomerPicker } from '../customer-picker.js';
 import { invoiceA4, ticket80, printDocument } from '../invoice.js';
 
 // `kind` is the value stored in the database; `section` is the URL segment.
@@ -54,6 +55,7 @@ function missingShopDataNotice() {
 // ---- List
 function statusText(invoice) {
   if (invoice.voided) return '<span class="neg">Anulado</span>';
+  if (invoice.rectifies_number) return `Devolución de ${esc(invoice.rectifies_number)}`;
   if (invoice.replaced_by_number) return `Convertido en factura ${esc(invoice.replaced_by_number)}`;
   if (invoice.replaces_number) return `Sustituye al ticket ${esc(invoice.replaces_number)}`;
   return '';
@@ -124,14 +126,16 @@ async function renderDetail(root, id) {
   }
   const labels = KINDS[invoice.kind];
   const isTicket = invoice.kind === 'ticket';
-  const canConvert = isTicket && !invoice.voided && !invoice.replaced_by_id && state.settings.modules.invoices;
+  const canConvert = isTicket && !invoice.voided && !invoice.rectifies_id && !invoice.replaced_by_id && state.settings.modules.invoices;
+  const unitsLeft = invoice.items.reduce((sum, item, index) => sum + item.qty - (invoice.refunded_qty[index] || 0), 0);
+  const canRefund = can('worker_refund') && !invoice.voided && !invoice.rectifies_id && !invoice.replaced_by_id && unitsLeft > 0;
   let format = defaultFormat(invoice.kind);
 
   root.innerHTML = `
     <div class="page-head">
       <a class="btn btn-icon" href="#/${labels.section}" title="Volver">${icon('left')}</a>
       <div>
-        <h1>${labels.singular} ${esc(invoice.number)}</h1>
+        <h1>${invoice.rectifies_id ? 'Devolución' : labels.singular} ${esc(invoice.number)}</h1>
         <div class="sub">
           ${fmtDate(invoice.date)} · ${money(invoice.total)} · emitido por ${esc(invoice.user_name || '')}
           ${invoice.voided ? ' · <b class="neg">ANULADO</b>' : ''}
@@ -147,8 +151,18 @@ async function renderDetail(root, id) {
         <a class="btn" href="#/facturas/nueva?desde_ticket=${invoice.id}" title="El cliente pide factura con sus datos">
           ${icon('swap')} Convertir en factura
         </a>` : ''}
+      ${canRefund ? `<button class="btn" data-refund>${icon('undo')} Devolución</button>` : ''}
       ${isAdmin() && !invoice.voided ? '<button class="btn btn-danger" data-void>Anular</button>' : ''}
     </div>
+    ${invoice.rectifies_id ? `
+      <div class="notice" style="margin-bottom:14px">
+        Devolución de <a href="#/${KINDS[invoice.rectifies_kind].section}/${invoice.rectifies_id}">${KINDS[invoice.rectifies_kind].singular.toLowerCase()} ${esc(invoice.rectifies_number)}</a>.
+      </div>` : ''}
+    ${invoice.refunds.length ? `
+      <div class="notice warn" style="margin-bottom:14px">
+        ${icon('undo')} Tiene devoluciones: ${invoice.refunds.map(refund =>
+          `<a href="#/${labels.section}/${refund.id}">${esc(refund.number)}</a> (${money(refund.total)})`).join(', ')}.
+      </div>` : ''}
     ${invoice.replaced_by_id ? `
       <div class="notice" style="margin-bottom:14px">
         Este ticket se sustituyó por la <a href="#/facturas/${invoice.replaced_by_id}">factura ${esc(invoice.replaced_by_number)}</a>.
@@ -180,13 +194,132 @@ async function renderDetail(root, id) {
   });
   on(root, 'click', '[data-print]', () => printDocument(documentHtml(invoice, format), { format, filename: fileNameFor(invoice) }));
   on(root, 'click', '[data-void]', voidInvoice);
+  on(root, 'click', '[data-refund]', () => openRefundDialog(invoice));
   renderDocument();
+}
+
+// Picks what comes back and how the money is returned, then opens the refund document to print it.
+async function openRefundDialog(invoice) {
+  const { sales, modules } = state.settings;
+  const sale = (await tryApi(`/invoices/${invoice.id}/sale`)) || { found: false };
+  const saleCategories = state.categories.filter(category => category.kind === 'sale' && category.active);
+  const asksPaymentMethod = modules.payment_methods && sales.ask_payment_method;
+  const seesProfit = can('worker_see_daily_profit');
+  // The discount of the original comes back in the same proportion.
+  const paidShare = invoice.subtotal ? invoice.total / invoice.subtotal : 1;
+  const lines = invoice.items
+    .map((item, index) => ({ ...item, index, left: item.qty - (invoice.refunded_qty[index] || 0) }))
+    .filter(line => line.left > 0);
+
+  const lineRow = (line) => `
+    <tr>
+      <td>${esc(line.description)}${line.detail ? `<div class="desc">${esc(line.detail)}</div>` : ''}</td>
+      <td class="r num">${money(line.price)}</td>
+      <td class="r">
+        <select data-line="${line.index}" data-price="${line.price}" style="width:auto">
+          ${Array.from({ length: line.left + 1 }, (_, qty) => `<option value="${qty}" ${qty === line.left ? 'selected' : ''}>${qty}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`;
+
+  modal({
+    title: `Devolución de ${invoice.number}`,
+    body: `
+      <form data-refund-form class="settings-grid">
+        <div class="wide table-wrap">
+          <table class="t">
+            <thead><tr><th>Producto</th><th class="r">Precio</th><th class="r">Unidades que devuelve</th></tr></thead>
+            <tbody>${lines.map(lineRow).join('')}</tbody>
+          </table>
+        </div>
+        <label class="field wide">Motivo <span class="hint">sale en el documento de devolución</span>
+          <input type="text" name="reason" maxlength="300" placeholder="Defectuoso, no era el modelo, desistimiento…">
+        </label>
+        <div class="field wide">
+          <div class="muted" style="font-weight:600">Importe a devolver</div>
+          <div style="font-size:26px;font-weight:750" class="num" data-refund-total></div>
+        </div>
+        <label class="check wide">
+          <input type="checkbox" name="register" checked>
+          <span><b>Devolver el dinero y apuntarlo en la caja de hoy</b><span class="muted">Desmárcalo si se cambia por otro producto o se entrega un vale.</span></span>
+        </label>
+        <label class="field" data-register-field>Producto de la venta
+          <select name="category">
+            ${saleCategories.map(category => `<option value="${category.id}" ${category.id === sale.category_id ? 'selected' : ''}>${esc(category.name)}</option>`).join('')}
+          </select>
+        </label>
+        ${asksPaymentMethod ? `
+          <label class="field" data-register-field>Se devuelve por
+            <select name="payment">${sales.payment_methods.map(method => `<option ${method === sale.payment_method ? 'selected' : ''}>${esc(method)}</option>`).join('')}</select>
+          </label>` : ''}
+        ${seesProfit ? `
+          <label class="field" data-register-field>Beneficio que se pierde (€) <span class="hint">${sale.found ? 'calculado con la venta original' : 'no hay venta enlazada: escríbelo'}</span>
+            <input class="money" name="profit" inputmode="decimal" placeholder="0,00">
+          </label>` : ''}
+      </form>`,
+    foot: `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" data-ok>${icon('undo')} Hacer devolución</button>`,
+    wide: true,
+    onMount: (dialog, close) => {
+      const form = dialog.querySelector('[data-refund-form]');
+      const fields = form.elements;
+      let profitTyped = false;
+
+      const selected = () => [...form.querySelectorAll('[data-line]')].map(select => ({
+        line: Number(select.dataset.line), qty: Number(select.value), price: Number(select.dataset.price),
+      }));
+      const refundTotal = () => Math.round(selected().reduce((sum, line) => sum + line.qty * line.price, 0) * paidShare * 100) / 100;
+
+      function refresh() {
+        const total = refundTotal();
+        form.querySelector('[data-refund-total]').textContent = money(total);
+        form.querySelectorAll('[data-register-field]').forEach(field => field.classList.toggle('hidden', !fields.register.checked));
+        if (fields.profit && sale.found && !profitTyped && sale.amount) fields.profit.value = moneyInput(sale.profit * total / sale.amount);
+      }
+      fields.profit?.addEventListener('input', () => { profitTyped = true; });
+      form.addEventListener('change', refresh);
+      refresh();
+
+      dialog.querySelector('[data-ok]').onclick = async () => {
+        if (!(refundTotal() > 0)) return toast('Marca lo que se devuelve', 'err');
+        const profit = fields.profit ? parseMoney(fields.profit.value) : NaN;
+        const body = {
+          items: selected().map(({ line, qty }) => ({ line, qty })),
+          reason: fields.reason.value,
+          register: fields.register.checked
+            ? {
+              category_id: Number(fields.category.value),
+              payment_method: fields.payment ? fields.payment.value : '',
+              profit: Number.isFinite(profit) ? profit : undefined,
+            }
+            : null,
+        };
+        const refund = await tryApi(`/invoices/${invoice.id}/refund`, { method: 'POST', body });
+        if (!refund) return;
+        state.settings.invoice.refund_next_number = Number(state.settings.invoice.refund_next_number) + 1;
+        toast(`Devolución ${refund.number} hecha`, 'ok');
+        close();
+        location.hash = `#/${KINDS[invoice.kind].section}/${refund.id}`;
+      };
+    },
+  });
 }
 
 // ---- Editor
 const emptyItem = () => ({ description: '', detail: '', qty: 1, price: '', warranty: '' });
 
 // A new document can start empty, from a sale already in the register (?venta=) or from a ticket (?desde_ticket=).
+const CUSTOMER_INPUTS = {
+  name: 'customer_name', nif: 'customer_nif', phone: 'customer_phone', address: 'customer_address',
+  postcode: 'customer_postcode', city: 'customer_city', province: 'customer_province',
+};
+
+// Opened from a customer's page (?cliente=): their details, ready in the document's own fields.
+async function customerDetails(params) {
+  const customer = params.get('cliente') ? await tryApi(`/customers/${Number(params.get('cliente'))}`) : null;
+  if (!customer) return {};
+  return Object.fromEntries(Object.entries(CUSTOMER_INPUTS).map(([field, input]) => [input, customer[field] || '']));
+}
+
 async function initialDraft(params, kind) {
   const ticketId = kind === 'factura' ? Number(params.get('desde_ticket')) : 0;
   const sourceTicket = ticketId ? await tryApi(`/invoices/${ticketId}`) : null;
@@ -216,6 +349,7 @@ async function initialDraft(params, kind) {
     sourceTicket: null,
     customer_name: '', customer_nif: '', customer_address: '', customer_postcode: '',
     customer_city: '', customer_province: '', customer_phone: '',
+    ...(await customerDetails(params)),
     items: [firstItem],
     discount: 0,
     notes: '',
@@ -359,6 +493,7 @@ async function renderEditor(root, params, kind) {
     </div>`;
 
   const form = root.querySelector('[data-form]');
+  attachCustomerPicker(form, CUSTOMER_INPUTS);
   const itemsContainer = root.querySelector('[data-items]');
   const preview = root.querySelector('[data-preview]');
   const previewFrame = root.querySelector('.inv-preview-wrap');

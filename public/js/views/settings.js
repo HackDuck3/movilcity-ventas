@@ -90,6 +90,7 @@ const SCHEMAS = {
           { name: 'repairs', type: 'bool', label: 'Reparaciones' },
           { name: 'stock', type: 'bool', label: 'Stock de móviles' },
           { name: 'purchases', type: 'bool', label: 'Compras de segunda mano' },
+          { name: 'customers', type: 'bool', label: 'Clientes', hint: 'Ficha de cada cliente con lo que ha comprado y reparado' },
           { name: 'notices', type: 'bool', label: 'Comunicados', hint: 'Políticas, tarifas y avisos para imprimir' },
           { name: 'files', type: 'bool', label: 'Archivos de la tienda', hint: 'Solo visible para administradores' },
         ],
@@ -121,6 +122,7 @@ const SCHEMAS = {
           { name: 'worker_add_expenses', type: 'bool', label: 'Registrar gastos' },
           { name: 'worker_create_invoices', type: 'bool', label: 'Hacer tickets y facturas' },
           { name: 'worker_create_repairs', type: 'bool', label: 'Gestionar reparaciones' },
+          { name: 'worker_refund', type: 'bool', label: 'Hacer devoluciones', hint: 'Devolver una venta y sacar el dinero de la caja' },
           { name: 'worker_create_purchases', type: 'bool', label: 'Comprar móviles de segunda mano', hint: 'Verá los datos de los vendedores, pero no las fotos de DNI ya guardadas' },
           { name: 'worker_edit_minutes', type: 'number', label: 'Minutos para corregir o borrar sus apuntes', hint: '0 = nunca. Después solo puede el administrador' },
         ],
@@ -165,6 +167,8 @@ const SCHEMAS = {
           { name: 'ticket_next_number', type: 'number', label: 'Próximo número de ticket' },
           { name: 'prefix', type: 'text', label: 'Serie de facturas (prefijo)', hint: 'Ej.: "F-" o "2026-"' },
           { name: 'next_number', type: 'number', label: 'Próximo número de factura' },
+          { name: 'refund_prefix', type: 'text', label: 'Serie de devoluciones (prefijo)', hint: 'Las rectificativas llevan numeración propia. Ej.: "R-"' },
+          { name: 'refund_next_number', type: 'number', label: 'Próximo número de devolución' },
         ],
       },
       {
@@ -728,6 +732,7 @@ function renderDataTools(body) {
         </p>
         <a class="btn btn-primary" href="/api/admin/backup">${icon('download')} Descargar copia (.db)</a>
       </div>
+      <div class="card card-pad" style="grid-column:1/-1" data-full-backup></div>
       <div class="card card-pad" style="grid-column:1/-1">
         <h3>Importar movimientos desde CSV</h3>
         <p class="muted" style="margin-top:0">
@@ -778,6 +783,61 @@ function renderDataTools(body) {
     find('[data-import-result]').innerHTML = `<div class="notice">Importados <b>${result.imported}</b> movimientos.${errors}</div>`;
     await refreshCategories();
   }
+
+  // ---- Encrypted full copy
+  const fullBackup = find('[data-full-backup]');
+  const fetchCommand = (token) => `curl -fsS -H "Authorization: Bearer ${token}" ${location.origin}/api/backup/full -o movilcity-$(date +%F).mcbackup`;
+
+  function lastFetchedText(status) {
+    if (!status.last_fetched_at) return 'Todavía no se la ha llevado ningún otro equipo.';
+    const days = Math.floor((Date.now() - new Date(status.last_fetched_at).getTime()) / 86400e3);
+    const when = new Date(status.last_fetched_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+    return `Última copia recogida por otro equipo: <b>${esc(when)}</b>${days >= 3 ? ` <span class="neg">(hace ${days} días: revisa que siga funcionando)</span>` : ''}.`;
+  }
+
+  function renderFullBackup(status) {
+    fullBackup.innerHTML = `
+      <h3>Copia completa cifrada, para guardar fuera</h3>
+      <p class="muted" style="margin-top:0">
+        Un solo archivo con <b>todo</b>: la base de datos, los archivos de la tienda y las fotos de DNI, cifrado con una contraseña.
+        Sirve para tener una copia fuera del servidor: si se estropea el disco, con ese archivo y la contraseña se recupera todo.
+        <b>Apunta la contraseña en un sitio seguro</b>: sin ella la copia no se puede abrir, y no hay forma de recuperarla.
+      </p>
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <input type="password" data-backup-passphrase autocomplete="new-password" style="width:auto;min-width:260px"
+               placeholder="${status.has_passphrase ? 'Nueva contraseña (para cambiarla)' : 'Contraseña de las copias (mín. 10)'}">
+        <button class="btn" data-backup-save>${status.has_passphrase ? 'Cambiar contraseña' : 'Guardar contraseña'}</button>
+        ${status.has_passphrase ? `<a class="btn btn-primary" href="/api/admin/backup/full">${icon('download')} Descargar copia completa</a>` : ''}
+      </div>
+      ${status.has_passphrase ? `
+        <h4 style="margin:18px 0 6px">Copia automática en otro equipo</h4>
+        <p class="muted" style="margin-top:0">
+          Otro ordenador puede llevarse la copia cada día con esta orden (los pasos están en <code>docs/COPIAS.md</code>).
+          El token solo sirve para descargar la copia, que ya va cifrada. ${lastFetchedText(status)}
+        </p>
+        <pre class="faint" style="font-size:12px;margin:0 0 10px;white-space:pre-wrap;word-break:break-all" data-backup-command>${esc(fetchCommand(status.token))}</pre>
+        <div class="row" style="gap:10px">
+          <button class="btn btn-sm" data-backup-copy>Copiar la orden</button>
+          <button class="btn btn-sm" data-backup-new-token>Cambiar el token</button>
+        </div>` : ''}`;
+  }
+
+  async function saveBackupSettings(body, message) {
+    const status = await tryApi('/admin/backup/settings', { method: 'PUT', body });
+    if (!status) return;
+    toast(message, 'ok');
+    renderFullBackup(status);
+  }
+  on(fullBackup, 'click', '[data-backup-save]', () => saveBackupSettings({ passphrase: find('[data-backup-passphrase]').value }, 'Contraseña de las copias guardada'));
+  on(fullBackup, 'click', '[data-backup-copy]', async () => {
+    await navigator.clipboard.writeText(find('[data-backup-command]').textContent);
+    toast('Orden copiada', 'ok');
+  });
+  on(fullBackup, 'click', '[data-backup-new-token]', async () => {
+    const confirmed = await confirmDialog('El token actual dejará de funcionar: tendrás que actualizar la orden en el equipo que recoge las copias.', { okText: 'Cambiar el token' });
+    if (confirmed) saveBackupSettings({ new_token: true }, 'Token cambiado');
+  });
+  tryApi('/admin/backup/status').then(status => { if (status) renderFullBackup(status); });
 
   const resetWord = find('[data-reset-confirm]');
   const resetButton = find('[data-reset]');

@@ -5,14 +5,17 @@ const { getSetting, setSetting } = require('../settings');
 const { route, fail } = require('../http');
 const { cents, euros, localDate, addDays, isDate, str } = require('../utils');
 const { validateMovement } = require('./movements');
+const { linkInvoice } = require('../customers');
 
 const isAdmin = (user) => user.role === 'admin';
 
 const INVOICE_SELECT = `
   SELECT i.*, u.name AS user_name, replaced.number AS replaces_number, replaced.date AS replaces_date,
-         replacement.id AS replaced_by_id, replacement.number AS replaced_by_number
+         replacement.id AS replaced_by_id, replacement.number AS replaced_by_number,
+         rectified.number AS rectifies_number, rectified.date AS rectifies_date, rectified.kind AS rectifies_kind
   FROM invoices i
   LEFT JOIN users u ON u.id = i.user_id
+  LEFT JOIN invoices rectified ON rectified.id = i.rectifies_id
   LEFT JOIN invoices replaced ON replaced.id = i.replaces_id
   LEFT JOIN invoices replacement ON replacement.replaces_id = i.id AND replacement.voided = 0`;
 
@@ -52,8 +55,27 @@ route('GET', '/api/invoices/:id', 'user', ({ user, params }) => {
   const invoice = get(`${INVOICE_SELECT} WHERE i.id = ?`, Number(params.id));
   if (!invoice) fail(404, 'Factura no encontrada');
   if (invoice.date < oldestDateVisibleTo(user)) fail(403, 'No tienes acceso a esta factura');
-  return toResponse(invoice);
+  const refunds = refundsOf(invoice.id);
+  return {
+    ...toResponse(invoice),
+    refunds: refunds.map(refund => ({ id: refund.id, number: refund.number, date: refund.date, total: euros(refund.total) })),
+    refunded_qty: refundedQuantities(refunds),
+  };
 });
+
+// ---- Refunds
+// A refund is its own document, in its own series, pointing at the one it corrects through rectifies_id.
+// Its lines carry the index of the original line (`line`) and a negative quantity.
+const refundsOf = (invoiceId) => all('SELECT * FROM invoices WHERE rectifies_id = ? AND voided = 0 ORDER BY id', invoiceId);
+
+// { originalLineIndex: unitsAlreadyReturned }
+function refundedQuantities(refunds) {
+  const returned = {};
+  for (const refund of refunds) {
+    for (const item of JSON.parse(refund.items)) returned[item.line] = (returned[item.line] || 0) - item.qty;
+  }
+  return returned;
+}
 
 // The warranty text is copied into each item so later changes in settings never alter issued documents.
 function itemsFromBody(body) {
@@ -147,9 +169,96 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
       customer.city, customer.province, customer.phone,
       JSON.stringify(items), subtotal, discount, total, str(body.notes, 500), user.id,
       replacedTicket ? replacedTicket.id : null, showVat ? 1 : 0);
+    linkInvoice(id);
     if (!replacedTicket) linkToSale(id, body, { items, total, date }, user);
     return { ok: true, id, number };
   });
+});
+
+function takeNextRefundNumber() {
+  const config = getSetting('invoice');
+  const number = `${config.refund_prefix || ''}${config.refund_next_number}`;
+  if (get('SELECT 1 AS found FROM invoices WHERE number = ?', number)) {
+    fail(400, `El número ${number} ya existe. Revisa la serie de devoluciones en Ajustes → Tickets y facturas.`);
+  }
+  setSetting('invoice', { ...config, refund_next_number: Number(config.refund_next_number) + 1 });
+  return number;
+}
+
+// The sale behind a document. For an invoice that replaced a ticket, the sale hangs from the ticket.
+function saleOf(invoice) {
+  return get(`SELECT * FROM movements WHERE invoice_id IN (?, ?) AND type = 'sale' AND amount > 0 AND deleted_at IS NULL ORDER BY id LIMIT 1`,
+    invoice.id, invoice.replaces_id || invoice.id);
+}
+
+// body: { items: [{ line, qty }], reason, register: { category_id, payment_method, profit } | null }
+route('POST', '/api/invoices/:id/refund', 'user', ({ user, params, body }) => {
+  if (!isAdmin(user) && !getSetting('permissions').worker_refund) fail(403, 'No tienes permiso para hacer devoluciones');
+  const original = get('SELECT * FROM invoices WHERE id = ?', Number(params.id));
+  if (!original) fail(404, 'Documento no encontrado');
+  if (original.voided) fail(400, 'Este documento está anulado');
+  if (original.rectifies_id) fail(400, 'Una devolución no se puede devolver');
+  if (get('SELECT 1 AS found FROM invoices WHERE replaces_id = ? AND voided = 0', original.id)) {
+    fail(400, 'Este ticket se convirtió en factura: haz la devolución desde la factura');
+  }
+
+  const originalItems = JSON.parse(original.items);
+  const alreadyReturned = refundedQuantities(refundsOf(original.id));
+  const items = (Array.isArray(body.items) ? body.items : [])
+    .map(({ line, qty }) => ({ line: Number(line), qty: parseInt(qty, 10) || 0 }))
+    .filter(({ qty }) => qty > 0)
+    .map(({ line, qty }) => {
+      const item = originalItems[line];
+      if (!item) fail(400, 'Línea no válida');
+      if (qty > item.qty - (alreadyReturned[line] || 0)) fail(400, `De "${item.description}" no quedan tantas unidades por devolver`);
+      return { line, description: item.description, detail: item.detail, qty: -qty, price: item.price, warranty: '', warranty_text: '' };
+    });
+  if (!items.length) fail(400, 'Marca lo que se devuelve');
+
+  // The discount of the original is returned in the same proportion.
+  const gross = items.reduce((sum, item) => sum - item.qty * item.price, 0);
+  const refunded = original.subtotal ? Math.round(gross * original.total / original.subtotal) : gross;
+  const reason = str(body.reason, 300);
+
+  return tx(() => {
+    const number = takeNextRefundNumber();
+    const { id } = run(`INSERT INTO invoices (number, kind, date, customer_name, customer_nif, customer_address, customer_postcode,
+                        customer_city, customer_province, customer_phone, customer_id,
+                        items, subtotal, discount, total, notes, user_id, show_vat, rectifies_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      number, original.kind, localDate(), original.customer_name, original.customer_nif, original.customer_address, original.customer_postcode,
+      original.customer_city, original.customer_province, original.customer_phone, original.customer_id,
+      JSON.stringify(items), -gross, -(gross - refunded), -refunded, reason, user.id, original.show_vat, original.id);
+    if (body.register) registerRefund(id, number, original, { items, refunded }, body.register, user);
+    return { ok: true, id, number };
+  });
+});
+
+// Takes the money out of the register as a negative sale, so the day's totals and the profit go down with it.
+function registerRefund(refundId, number, original, refund, register, user) {
+  const sale = saleOf(original);
+  const category = get("SELECT id FROM categories WHERE id = ? AND kind = 'sale'", Number(register.category_id) || (sale && sale.category_id));
+  if (!category) fail(400, 'Elige el producto de la venta que se devuelve');
+  // Without a figure from the user, the profit lost is the sale's profit in proportion to what is returned.
+  const proportional = sale && sale.amount ? Math.round(sale.profit * refund.refunded / sale.amount) : 0;
+  const typed = cents(register.profit);
+  const profitLost = typed === null ? proportional : typed;
+  const description = `Devolución ${number} de ${original.number} · ${refund.items.map(item => item.description).join(', ')}`;
+  run(`INSERT INTO movements (type, date, category_id, description, amount, profit, payment_method, user_id, invoice_id)
+       VALUES ('sale', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    localDate(), category.id, str(description, 300), -refund.refunded, -profitLost, str(register.payment_method, 40), user.id, refundId);
+}
+
+// What the refund dialog needs to propose a product and the profit that goes with the money.
+route('GET', '/api/invoices/:id/sale', 'user', ({ user, params }) => {
+  const invoice = get('SELECT * FROM invoices WHERE id = ?', Number(params.id));
+  if (!invoice) fail(404, 'Documento no encontrado');
+  const sale = saleOf(invoice);
+  if (!sale) return { found: false };
+  const seesProfit = isAdmin(user) || !!getSetting('permissions').worker_see_daily_profit;
+  return {
+    found: true, category_id: sale.category_id, payment_method: sale.payment_method,
+    amount: euros(sale.amount), profit: seesProfit ? euros(sale.profit) : undefined,
+  };
 });
 
 module.exports = { oldestDateVisibleTo };

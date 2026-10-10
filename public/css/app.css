@@ -116,6 +116,8 @@ a { color: var(--primary); }
 .card h2, .card h3 { margin: 0 0 12px; font-size: 15px; }
 .card-head { display: flex; align-items: center; gap: 10px; padding: 14px var(--pad); border-bottom: 1px solid var(--border); }
 .card-head h2, .card-head h3 { margin: 0; font-size: 15px; }
+.card-head h3 svg { width: 16px; height: 16px; vertical-align: -3px; }
+.card-head .count { color: var(--text-3); font-weight: 500; }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
@@ -146,6 +148,15 @@ a { color: var(--primary); }
 .big-btn:disabled { opacity: .45; cursor: not-allowed; }
 
 label.field, div.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+label.field { position: relative; }
+.suggest {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin-top: 4px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden;
+}
+.suggest button { display: flex; flex-direction: column; gap: 1px; width: 100%; padding: 8px 12px; border: 0; background: none; text-align: left; cursor: pointer; color: var(--text); font-weight: 400; }
+.suggest button + button { border-top: 1px solid var(--border); }
+.suggest button:hover { background: var(--surface-2); }
+.suggest span { font-size: 12px; color: var(--text-3); }
 label.field .hint, div.field .hint { font-weight: 400; color: var(--text-3); font-size: 12px; }
 input:not([type]), input[type=text], input[type=password], input[type=number], input[type=date], input[type=email], input[type=search], select, textarea {
   border: 1px solid var(--border); background: var(--surface); border-radius: 9px; padding: 9px 11px; width: 100%; min-width: 0;
@@ -435,6 +446,12 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 
 /* ------------------------------------------------------------------ print */
 #print-root { display: none; }
+.report-doc { width: 210mm; padding: 14mm; background: #fff; color: #111; font-size: 11px; }
+.report-doc h1 { font-size: 18px; margin: 0 0 2px; }
+.report-doc h2 { font-size: 13px; margin: 14px 0 4px; }
+.report-doc .report-sub, .report-doc .report-note { color: #555; margin-bottom: 10px; }
+.report-doc table.t { width: 100%; margin-bottom: 12px; font-size: 10.5px; }
+.report-doc table.t th, .report-doc table.t td { padding: 4px 6px; border-bottom: 1px solid #ddd; color: #111; background: none; }
 @media print {
   body.printing > *:not(#print-root) { display: none !important; }
   body.printing #print-root { display: block; }
@@ -479,7 +496,7 @@ table.t tr.deleted td { opacity: .55; text-decoration: line-through; }
 .repair-receipt .conditions { font-size: 9.5px; line-height: 1.3; margin-top: 6px; }
 .repair-receipt.paper-58 .conditions { font-size: 8.5px; }
 .repair-receipt .conditions p { margin: 3px 0; }
-.repair-receipt .signature { border: 1px solid #000; height: 22mm; margin-top: 6px; padding: 2px 4px; font-size: 10px; }
+.ticket-doc .signature { border: 1px solid #000; height: 22mm; margin-top: 6px; padding: 2px 4px; font-size: 10px; }
 .pattern-pad { display: grid; grid-template-columns: repeat(3, 44px); gap: 8px; }
 .pattern-pad button { height: 44px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface); color: var(--text-3); font-weight: 700; cursor: pointer; }
 .pattern-pad button.used { border-color: var(--primary); background: var(--primary); color: #fff; }

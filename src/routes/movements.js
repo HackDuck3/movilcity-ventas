@@ -55,7 +55,7 @@ route('GET', '/api/day', 'user', ({ user, query }) => {
   if (!allowed('worker_see_daily_expenses')) expenses = expenses.filter(expense => expense.user_id === user.id);
 
   const sumCents = (list, field) => list.reduce((total, row) => total + row[field], 0);
-  const totals = { sales_count: sales.length };
+  const totals = { sales_count: sales.filter(sale => sale.amount > 0).length }; // refunds are negative sales
   if (allowed('worker_see_daily_sales')) {
     totals.sales = euros(sumCents(sales, 'amount'));
     const byMethod = {};

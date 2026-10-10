@@ -34,8 +34,19 @@ function customerTown(inv) {
 const customerLines = (inv) =>
   lines([inv.customer_name, inv.customer_nif && `NIF: ${inv.customer_nif}`, inv.customer_address, customerTown(inv), inv.customer_phone]);
 
-const documentTitle = (inv, cfg) =>
-  (inv.kind === 'ticket' ? cfg.ticket_title || 'Ticket' : cfg.title || 'Factura');
+const isRefund = (inv) => !!inv.rectifies_id;
+
+function documentTitle(inv, cfg) {
+  if (isRefund(inv)) return inv.kind === 'ticket' ? 'Factura simplificada rectificativa' : 'Factura rectificativa';
+  return inv.kind === 'ticket' ? cfg.ticket_title || 'Ticket' : cfg.title || 'Factura';
+}
+
+// A refund must name the document it corrects.
+function rectifiesText(inv) {
+  if (!isRefund(inv)) return '';
+  const date = inv.rectifies_date ? ` de ${fmtDate(inv.rectifies_date)}` : '';
+  return `Devolución. Rectifica ${inv.kind === 'ticket' ? 'la factura simplificada' : 'la factura'} n.º ${inv.rectifies_number}${date}.`;
+}
 
 function replacesText(inv) {
   if (!inv.replaces_number) return '';
@@ -85,7 +96,7 @@ function totalsBlock(inv, cfg) {
   const vat = vatBreakdown(inv, cfg);
   const row = (label, value) => `<div class="sum-row"><span>${label}</span><span>${value}</span></div>`;
   return `<div class="doc-totals">
-    ${inv.discount ? row('Subtotal', money(inv.subtotal)) + row('Descuento', `−${money(inv.discount)}`) : ''}
+    ${inv.discount ? row('Subtotal', money(inv.subtotal)) + row('Descuento', money(-inv.discount)) : ''}
     ${vat ? row('Base imponible', money(vat.base)) + row(`IVA (${vat.rate}%)`, money(vat.vat)) : ''}
     <div class="sum-total"><span>Total</span><span>${money(inv.total)}</span></div>
     ${vat || inv.kind === 'ticket' ? '' : '<div class="sum-note">IVA incluido</div>'}
@@ -98,7 +109,8 @@ function conditionsBlock(inv, cfg) {
       <b>${esc(g.name)}</b>${g.items.length ? ` <span class="warranty-items">(${esc(g.items.join(', '))})</span>` : ''}
       <div>${esc(g.text)}</div>
     </div>`).join('');
-  const notes = [replacesText(inv), inv.notes].filter(Boolean).map(esc).join('\n');
+  const ownNotes = inv.notes && isRefund(inv) ? `Motivo: ${inv.notes}` : inv.notes;
+  const notes = [rectifiesText(inv), replacesText(inv), ownNotes].filter(Boolean).map(esc).join('\n');
   return `<div class="doc-conditions">
     ${warranties ? `<h4>Garantía</h4>${warranties}` : ''}
     ${notes ? `<h4>Notas</h4><div class="doc-notes">${notes}</div>` : ''}
@@ -194,15 +206,16 @@ export function ticket80(inv, settings) {
     ${inv.customer_name ? `<div>Cliente: ${esc(inv.customer_name)}${inv.customer_nif ? ' · ' + esc(inv.customer_nif) : ''}</div>` : ''}
     <hr>${items}<hr>
     ${inv.discount ? `<div class="tl"><span>Subtotal</span><span>${money(inv.subtotal)}</span></div>
-                      <div class="tl"><span>Descuento</span><span>-${money(inv.discount)}</span></div>` : ''}
+                      <div class="tl"><span>Descuento</span><span>${money(-inv.discount)}</span></div>` : ''}
     <div class="tl big"><span>TOTAL</span><span>${money(inv.total)}</span></div>
     ${vat ? `<div class="tl"><span>Base ${money(vat.base)}</span><span>IVA ${vat.rate}% ${money(vat.vat)}</span></div>` : ''}
     <hr>
     ${warranties}
-    ${inv.notes ? `<div class="c">${esc(inv.notes)}</div>` : ''}
+    ${isRefund(inv) ? `<div class="c"><b>${esc(rectifiesText(inv))}</b></div>` : ''}
+    ${inv.notes ? `<div class="c">${isRefund(inv) ? 'Motivo: ' : ''}${esc(inv.notes)}</div>` : ''}
     ${cfg.footer ? `<div class="c">${esc(cfg.footer)}</div>` : ''}
-    <div class="c thanks">¡Gracias por su compra!</div>
-    ${qrBlock(cfg)}
+    ${isRefund(inv) ? '<div class="signature">Recibí el importe · firma del cliente</div>' : '<div class="c thanks">¡Gracias por su compra!</div>'}
+    ${isRefund(inv) ? '' : qrBlock(cfg)}
     ${inv.voided ? '<div class="c big">*** ANULADO ***</div>' : ''}
   </div>`;
 }

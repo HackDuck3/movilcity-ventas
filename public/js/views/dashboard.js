@@ -1,6 +1,7 @@
 // Owner dashboard (admin only): a summary for any period and a month-by-month view of a year.
 import { esc, money, today, addDays, fmtDate, fmtMonth, fromIso, isoDate, on, redrawOnResize, tryApi } from '../core.js';
 import { groupedBars, rankingBars } from '../charts.js';
+import { renderQuarter } from './quarter.js';
 
 const DAY_MS = 86400e3;
 const MAX_DAYS_SHOWN_PER_DAY = 62; // longer periods are charted per month
@@ -92,15 +93,17 @@ function drawSalesChart(element, { labels, titles, sales, profit, height, onClic
 }
 
 export async function dashboardView(root, params) {
-  const tab = params.get('tab') === 'anual' ? 'anual' : 'resumen';
+  const tab = ['anual', 'trimestre'].includes(params.get('tab')) ? params.get('tab') : 'resumen';
   root.innerHTML = `
     <div class="page-head"><div><h1>Panel del negocio</h1><div class="sub">Solo visible para administradores</div></div></div>
     <div class="tabs">
       <a href="#/panel" class="${tab === 'resumen' ? 'on' : ''}">Resumen</a>
       <a href="#/panel?tab=anual" class="${tab === 'anual' ? 'on' : ''}">Año completo</a>
+      <a href="#/panel?tab=trimestre" class="${tab === 'trimestre' ? 'on' : ''}">Trimestre (gestoría)</a>
     </div>
     <div data-body></div>`;
   const body = root.querySelector('[data-body]');
+  if (tab === 'trimestre') return renderQuarter(body, params);
   return tab === 'anual' ? renderYear(body, params) : renderSummary(body, params);
 }
 

@@ -67,6 +67,16 @@ function searchPurchases(query) {
     }));
 }
 
+function searchCustomers(query) {
+  const match = matchAny(['name', 'nif', 'phone'], query);
+  return all(`SELECT id, name, nif, phone, city FROM customers WHERE ${match.condition} ORDER BY updated_at DESC LIMIT ?`,
+    ...match.values, RESULTS_PER_SECTION)
+    .map(customer => ({
+      id: customer.id, title: customer.name || customer.phone,
+      customer: [customer.phone, customer.nif, customer.city].filter(Boolean).join(' · '),
+    }));
+}
+
 function searchMovements(query) {
   const match = matchAny(['m.description', 'c.name'], query);
   return all(`SELECT m.id, m.type, m.date, m.description, m.amount, m.invoice_id, c.name AS category
@@ -82,7 +92,7 @@ function searchMovements(query) {
 
 route('GET', '/api/search', 'user', ({ user, query }) => {
   const text = str(query.q, 80);
-  if (text.length < MIN_QUERY_LENGTH) return { invoices: [], repairs: [], stock: [], purchases: [], movements: [] };
+  if (text.length < MIN_QUERY_LENGTH) return { customers: [], invoices: [], repairs: [], stock: [], purchases: [], movements: [] };
 
   const isAdmin = user.role === 'admin';
   const modules = getSetting('modules');
@@ -90,6 +100,7 @@ route('GET', '/api/search', 'user', ({ user, query }) => {
   const allowed = (permission) => isAdmin || !!permissions[permission];
 
   return {
+    customers: modules.customers ? searchCustomers(text) : [],
     invoices: modules.invoices && allowed('worker_create_invoices') ? searchInvoices(text, user) : [],
     repairs: modules.repairs && allowed('worker_create_repairs') ? searchRepairs(text) : [],
     stock: modules.stock ? searchStock(text) : [],

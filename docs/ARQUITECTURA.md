@@ -17,6 +17,8 @@ src/
   db.js                   Conexión SQLite, tablas, migraciones y copias de seguridad
   defaults.js             Datos iniciales: productos, tipos de garantía y AJUSTES POR DEFECTO
   settings.js             Leer y guardar ajustes
+  customers.js            Reconocer a un cliente por su NIF o teléfono y enlazarlo a sus documentos
+  full-backup.js          Copia completa cifrada (tar + gzip + AES-256-GCM) y su lectura
   auth.js                 Contraseñas (scrypt), sesiones y límite de intentos de login
   http.js                 route(), fail() y HttpError
   utils.js                Dinero, fechas y limpieza de textos
@@ -25,15 +27,18 @@ src/
     session.js            Estado, primera instalación, login, logout, mi contraseña
     categories.js         Productos y motivos de gasto
     movements.js          Caja del día, ventas y gastos
-    invoices.js           Tickets y facturas
+    invoices.js           Tickets, facturas y devoluciones
     repairs.js            Resguardos de reparación
+    customers.js          Clientes: listado, ficha con historial y búsqueda para el autocompletado
     stock.js              Stock de móviles
     purchases.js          Compras de móviles de segunda mano a particulares
     search.js             Buscador general
     stats.js              Cifras del panel del dueño
+    quarter.js            Resumen trimestral para la gestoría y sus CSV
     settings.js           Guardar ajustes (con validación)
     users.js              Usuarios
-    data.js               Exportar/importar CSV y descargar la base de datos
+    data.js               Exportar/importar CSV, descargar la base de datos y empezar de cero
+    backup.js             Copia completa cifrada: descarga y recogida con token
     notices.js            Comunicados (políticas, tarifas, avisos)
     files.js              Archivos de la tienda
 public/
@@ -45,6 +50,7 @@ public/
     invoice.js            Plantillas imprimibles: factura A4 y ticket térmico (58 u 80 mm)
     repair-receipt.js     Resguardo de reparación: folio A4 apaisado con dos copias, o ticket térmico
     qr.js                 Generador de códigos QR (sin librerías)
+    customer-picker.js    Sugerencias de clientes al escribir nombre, NIF o teléfono
     notice.js             Comunicado imprimible y el marcado sencillo de su texto (#, -, |, **)
     purchase-contract.js  Contrato imprimible de compra de segunda mano (dos copias A4)
     delivery-note.js      Lee el texto de un albarán de proveedor (modelo, IMEIs y precio)
@@ -55,6 +61,8 @@ public/
       dashboard.js        Panel
       invoices.js         Tickets y facturas (listado, detalle y editor)
       repairs.js          Reparaciones (listado, detalle y editor)
+      customers.js        Clientes
+      quarter.js          Pestaña "Trimestre" del panel
       stock.js            Stock de móviles
       purchases.js        Compras de segunda mano
       notices.js          Comunicados
@@ -62,7 +70,7 @@ public/
       movements.js        Movimientos
       files.js            Archivos
       settings.js         Ajustes
-scripts/                  demo-data.js, reset-password.js, release.sh, set-github-user.sh
+scripts/                  demo-data.js, reset-password.js, release.sh, fetch-backup.sh, restore-backup.js
 test/api.test.js          Prueba de la API de principio a fin
 atik-movilcity/           Paquete de la app para la tienda comunitaria de Umbrel
 ```
@@ -105,8 +113,9 @@ El tercer argumento es el acceso: `'public'` (sin sesión), `'user'` (cualquier 
 | `settings` | Ajustes, una fila por grupo |
 | `categories` | Productos (`kind = 'sale'`) y motivos de gasto (`kind = 'expense'`). Cada producto tiene su `warranty` por defecto |
 | `movements` | Una fila por venta o gasto |
-| `invoices` | Tickets (`kind = 'ticket'`) y facturas (`kind = 'factura'`). Las líneas van en `items` como JSON |
-| `repairs` | Resguardos de reparación: cliente, terminal, averías, importe, señal, fecha prevista y estado (`pending` / `collected`; con `ready_at` relleno está lista para recoger) |
+| `customers` | Clientes. Los documentos guardan su propia copia de los datos con los que se emitieron y apuntan aquí con `customer_id` |
+| `invoices` | Tickets (`kind = 'ticket'`) y facturas (`kind = 'factura'`). Las líneas van en `items` como JSON. Una devolución es otra fila, con `rectifies_id` y cantidades y totales en negativo |
+| `repairs` | Resguardos de reparación: cliente, terminal, averías, importe, señal, coste de la pieza, fecha prevista y estado (`pending` / `collected`; con `ready_at` relleno está lista para recoger) |
 | `devices` | Móviles en stock: coste, precio previsto y, al venderse, la venta (`movement_id`) |
 | `purchases` | Compras de segunda mano: vendedor, móvil, precio y la foto del DNI (el archivo está en `data/id-documents/`) |
 | `notices` | Comunicados: título, subtítulo y texto con marcado sencillo |
@@ -120,6 +129,21 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 - Cada producto guarda el nombre de su garantía por defecto. En el editor, al escribir una línea que empieza por el nombre de un producto se propone esa garantía.
 - Al guardar, el servidor copia el **texto** de la garantía dentro de cada línea (`warranty_text`). Así, cambiar un texto en Ajustes no altera documentos ya emitidos.
 - Cada documento guarda `show_vat`: si se imprime el desglose de IVA o solo el total.
+
+### Clientes
+
+- No hay que darlos de alta: `rememberCustomer()` (`src/customers.js`) crea o completa la ficha al guardar una factura o una reparación que lleve NIF o teléfono. Un nombre solo no basta para distinguir a dos personas.
+- Se reconoce por NIF y, si no, por teléfono; el mismo teléfono con otro NIF es otra persona.
+
+### Devoluciones
+
+- `POST /api/invoices/:id/refund` crea el documento rectificativo en su propia serie (`invoice.refund_prefix`). Cada línea guarda el índice de la línea original (`line`) y la cantidad en negativo, y así se sabe cuántas unidades quedan por devolver.
+- El dinero sale de caja como una venta con importe y beneficio negativos, enlazada al documento. Las sumas bajan solas; los recuentos de ventas ignoran los importes negativos.
+
+### Copia completa cifrada
+
+- La contraseña y el token viven en la fila `secret:backup` de `settings`, fuera de `DEFAULT_SETTINGS`, porque los ajustes normales se envían a todos los usuarios.
+- `GET /api/backup/full` es pública y solo comprueba el token: lo que entrega ya va cifrado. La guía de uso es [COPIAS.md](COPIAS.md).
 
 ### Diseños de la factura
 
@@ -167,7 +191,7 @@ npm run demo     # app con datos de ejemplo en http://localhost:3001 (admin / ad
 npm test         # arranca el servidor con una base de datos temporal y recorre los flujos principales
 ```
 
-`npm test` cubre la API (login, permisos, caja, tickets y facturas, reparaciones, ajustes, CSV, archivos). **No cubre las pantallas**: después de tocar algo en `public/`, compruébalo a mano en la demo.
+`npm test` cubre la API (login, permisos, caja, tickets y facturas, devoluciones, reparaciones, clientes, resumen trimestral, copia cifrada, ajustes, CSV, archivos). **No cubre las pantallas**: después de tocar algo en `public/`, compruébalo a mano en la demo.
 
 ## Publicar una versión
 
