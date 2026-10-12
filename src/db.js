@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS categories (
   kind           TEXT NOT NULL CHECK (kind IN ('sale','expense')),
   name           TEXT NOT NULL,
   color          TEXT NOT NULL DEFAULT '#64748b',
-  expense_type   TEXT CHECK (expense_type IN ('stock','operating')),
+  expense_type   TEXT CHECK (expense_type IN ('stock','operating','personal')),
   default_price  INTEGER,
   default_profit INTEGER,
   favorite       INTEGER NOT NULL DEFAULT 0,
@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS movements (
   payment_method TEXT NOT NULL DEFAULT '',
   user_id        INTEGER REFERENCES users(id),
   invoice_id     INTEGER REFERENCES invoices(id),
+  invoice_line   INTEGER, -- which line of that document this sale is, when each line was recorded on its own
   created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at     TEXT,
   updated_by     INTEGER,
@@ -268,11 +269,14 @@ const REPAIR_REWORDING = [
 function migrate() {
   const hasColumn = (table, column) => all(`PRAGMA table_info(${table})`).some(c => c.name === column);
 
+  allowPersonalExpenses();
+
   if (!hasColumn('invoices', 'replaces_id')) db.exec('ALTER TABLE invoices ADD COLUMN replaces_id INTEGER');
   if (!hasColumn('invoices', 'show_vat')) db.exec('ALTER TABLE invoices ADD COLUMN show_vat INTEGER');
   for (const column of ['customer_postcode', 'customer_city', 'customer_province']) {
     if (!hasColumn('invoices', column)) db.exec(`ALTER TABLE invoices ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
   }
+  if (!hasColumn('movements', 'invoice_line')) db.exec('ALTER TABLE movements ADD COLUMN invoice_line INTEGER');
   for (const column of ['customer_id', 'rectifies_id']) {
     if (!hasColumn('invoices', column)) db.exec(`ALTER TABLE invoices ADD COLUMN ${column} INTEGER`);
   }
@@ -296,6 +300,10 @@ function migrate() {
     run("UPDATE settings SET value = ? WHERE key = 'repairs'",
       JSON.stringify({ ...config, disclaimer: reword(config.disclaimer), conditions: reword(config.conditions) }));
   });
+  // The spreadsheet import created this reason before the 'personal' type existed.
+  once('personal_expenses_reason', () => {
+    run("UPDATE categories SET expense_type = 'personal' WHERE kind = 'expense' AND name = 'Gastos personales' COLLATE NOCASE");
+  });
   once('starting_notices', () => {
     for (const notice of STARTING_NOTICES) {
       run('INSERT INTO notices (title, subtitle, body) VALUES (?,?,?)', notice.title, notice.subtitle, notice.body);
@@ -308,6 +316,31 @@ function migrate() {
     run('UPDATE invoices SET show_vat = ? WHERE show_vat IS NULL', config.show_vat === false ? 0 : 1);
     if (row) run("UPDATE settings SET value = ? WHERE key = 'invoice'", JSON.stringify({ ...config, show_vat: false }));
   });
+}
+
+// SQLite cannot change a CHECK constraint, so a categories table created before the 'personal'
+// expense type existed is rebuilt with the current definition. Ids are kept, so movements still match.
+function allowPersonalExpenses() {
+  const { sql } = get("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'categories'");
+  if (sql.includes("'personal'")) return;
+  const columns = all('PRAGMA table_info(categories)').map(column => column.name).join(', ');
+  const rebuilt = sql.replace(/IN\s*\(\s*'stock'\s*,\s*'operating'\s*\)/, "IN ('stock','operating','personal')")
+    .replace(/CREATE TABLE (IF NOT EXISTS )?"?categories"?/, 'CREATE TABLE categories_rebuilt');
+  if (!rebuilt.includes("'personal'")) {
+    console.error('[AVISO] No se pudo añadir el tipo de gasto "personal": la tabla de categorías tiene una definición inesperada.');
+    return;
+  }
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    tx(() => {
+      db.exec(rebuilt);
+      db.exec(`INSERT INTO categories_rebuilt (${columns}) SELECT ${columns} FROM categories`);
+      db.exec('DROP TABLE categories');
+      db.exec('ALTER TABLE categories_rebuilt RENAME TO categories');
+    });
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
 }
 
 // Runs a data migration a single time per database, remembering it in the settings table.

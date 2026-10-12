@@ -24,7 +24,7 @@ function categoryFromBody(body, existing = {}) {
 
   let expenseType = null;
   if (kind === 'expense') {
-    expenseType = ['stock', 'operating'].includes(body.expense_type) ? body.expense_type : existing.expense_type || 'operating';
+    expenseType = ['stock', 'operating', 'personal'].includes(body.expense_type) ? body.expense_type : existing.expense_type || 'operating';
   }
   const flag = (field, fallback) => (field in body ? (body[field] ? 1 : 0) : existing[field] ?? fallback);
 

@@ -15,13 +15,14 @@ const SALE_CATEGORIES = [
 const FAVORITE_CATEGORIES = new Set(['Movil', 'Funda', 'Protector', 'Funda y protector', 'Cascos', 'Cargador',
   'Cable USB', 'Cable Tipo-C', 'Reparacion', 'Tarjeta SIM', 'Duplicado', 'Adaptador']);
 
-// 'stock' = goods bought for resale, 'operating' = running costs (rent, bills, food...).
+// 'stock' = goods bought for resale, 'operating' = running costs of the shop (rent, bills, wages...),
+// 'personal' = the owner's own spending paid from the till: it leaves the cash but is not a cost of the business.
 const EXPENSE_CATEGORIES = [
   ['Compra de móviles', 'stock'], ['Compra de accesorios', 'stock'], ['Compra tienda / proveedor', 'stock'],
   ['Tarjetas SIM / recargas', 'stock'], ['Recambios reparación', 'stock'],
   ['Alquiler', 'operating'], ['Luz / agua / internet', 'operating'], ['Sueldos', 'operating'],
   ['Comida / Mercadona', 'operating'], ['Publicidad / web', 'operating'], ['Deuda / préstamo', 'operating'],
-  ['Otros gastos', 'operating'],
+  ['Otros gastos', 'operating'], ['Gastos personales', 'personal'],
 ];
 
 const PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948',

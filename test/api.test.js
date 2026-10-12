@@ -378,6 +378,32 @@ test('a refund returns part of a ticket, in its own series, and takes the money 
   assert.equal((await admin('POST', `/api/invoices/${refund.data.id}/refund`, { items: [{ line: 0, qty: 1 }] })).status, 400);
 });
 
+test('a ticket with several lines records one sale per line, each under its product', async () => {
+  const categories = (await admin('GET', '/api/categories')).data.filter(c => c.kind === 'sale');
+  const [funda, cable] = [categories.find(c => c.name === 'Funda'), categories.find(c => c.name === 'Cable USB')];
+  const before = (await admin('GET', '/api/day')).data.sales.length;
+  const ticket = await admin('POST', '/api/invoices', {
+    kind: 'ticket', discount: 2,
+    items: [{ description: 'Funda', qty: 2, price: 6 }, { description: 'Cable USB', price: 8 }],
+    register: { payment_method: 'Tarjeta', lines: [{ category_id: funda.id, profit: 8 }, { category_id: cable.id, profit: 5 }] },
+  });
+  const sales = (await admin('GET', '/api/day')).data.sales.slice(before);
+  // The 2 € discount is shared in proportion (1.20 and 0.80) and comes out of each line's profit.
+  assert.deepEqual(sales.map(sale => [sale.category, sale.amount, sale.profit]), [['Funda', 10.8, 6.8], ['Cable USB', 7.2, 4.2]]);
+  assert.ok(sales.every(sale => sale.invoice_id === ticket.data.id && sale.payment_method === 'Tarjeta'));
+
+  // Returning the cable takes it out under "Cable USB", with that line's profit.
+  await admin('POST', `/api/invoices/${ticket.data.id}/refund`, { items: [{ line: 1, qty: 1 }], register: { payment_method: 'Tarjeta' } });
+  const refund = (await admin('GET', '/api/day')).data.sales.at(-1);
+  assert.deepEqual([refund.category, refund.amount, refund.profit], ['Cable USB', -7.2, -4.2]);
+
+  const incomplete = await admin('POST', '/api/invoices', {
+    kind: 'ticket', items: [{ description: 'Funda', price: 6 }, { description: 'Cable USB', price: 8 }],
+    register: { lines: [{ category_id: funda.id, profit: 3 }] },
+  });
+  assert.equal(incomplete.status, 400);
+});
+
 test('the quarterly summary splits what was issued into base and VAT', async () => {
   const ticket = await admin('POST', '/api/invoices', { kind: 'ticket', items: [{ description: 'Exchanged', price: 20 }] });
   await admin('POST', '/api/invoices', {
@@ -442,9 +468,19 @@ test('workers are limited by permissions', async () => {
   assert.equal((await worker('GET', '/api/day')).status, 401);
 });
 
+test('personal expenses leave the cash flow but not the net profit', async () => {
+  const before = (await admin('GET', '/api/admin/stats')).data.totals;
+  const reason = await admin('POST', '/api/admin/categories', { kind: 'expense', name: 'Home', expense_type: 'personal' });
+  await admin('POST', '/api/movements', { type: 'expense', category_id: reason.data.id, amount: 40 });
+  const after = (await admin('GET', '/api/admin/stats')).data.totals;
+  assert.deepEqual([after.expenses_personal, after.net, after.expenses_operating], [40, before.net, before.expenses_operating]);
+  assert.equal(Math.round((before.cash - after.cash) * 100), 4000);
+  assert.ok(!(await admin('GET', '/api/admin/quarter')).data.expenses.some(expense => expense.name === 'Home'));
+});
+
 test('statistics, CSV export and import', async () => {
   const stats = (await admin('GET', '/api/admin/stats')).data;
-  assert.equal(stats.totals.sales, 349.6);
+  assert.equal(stats.totals.sales, 360.4);
   assert.equal((await admin('GET', '/api/admin/year')).data.months.length, 12);
   assert.ok((await admin('GET', '/api/admin/movements')).data.length >= 3);
 

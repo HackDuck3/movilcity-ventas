@@ -85,10 +85,11 @@ Los permisos se comprueban en el servidor: un trabajador no recibe los datos que
 
 ## Cómo se calcula el beneficio
 
-Cada venta guarda su precio y su beneficio. Para no restar dos veces el coste de la mercancía, cada motivo de gasto es de uno de dos tipos:
+Cada venta guarda su precio y su beneficio. Para no restar dos veces el coste de la mercancía, cada motivo de gasto es de uno de tres tipos:
 
 - **Mercancía** (compra de móviles, fundas, recambios): no resta del beneficio neto, porque su coste ya está descontado en el beneficio de cada venta.
 - **Operativo** (alquiler, luz, sueldos): sí resta.
+- **Personal** (lo que el dueño saca de la caja para sí o para casa): no resta del beneficio neto, porque no es un coste del negocio, pero sí cuenta en el flujo de caja. Tampoco aparece en el resumen trimestral para la gestoría.
 
 | Indicador | Cálculo | Qué indica |
 |---|---|---|

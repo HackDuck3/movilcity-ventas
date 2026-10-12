@@ -1,6 +1,6 @@
 'use strict';
 // What the accountant asks for every quarter: documents issued with base and VAT, expenses by reason
-// and second-hand purchases. Voided documents never count.
+// and second-hand purchases. Voided documents and personal expenses never count.
 const { all } = require('../db');
 const { getSetting } = require('../settings');
 const { route, fail } = require('../http');
@@ -59,7 +59,9 @@ function sumOf(documents) {
 const expensesIn = ({ from, to }) => all(`
   SELECT m.date, c.name AS category, c.expense_type, m.description, m.amount
   FROM movements m LEFT JOIN categories c ON c.id = m.category_id
-  WHERE m.type = 'expense' AND m.deleted_at IS NULL AND m.date BETWEEN ? AND ? ORDER BY m.date, m.id`, from, to);
+  WHERE m.type = 'expense' AND m.deleted_at IS NULL AND m.date BETWEEN ? AND ?
+    AND COALESCE(c.expense_type, 'operating') <> 'personal' -- the owner's own spending is not the accountant's business
+  ORDER BY m.date, m.id`, from, to);
 
 const purchasesIn = ({ from, to }) => all(`
   SELECT date, number, seller_name, seller_nif, brand, model, imei, price

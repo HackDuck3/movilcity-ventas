@@ -501,7 +501,7 @@ async function renderSchemaForm(body, schema) {
 }
 
 // ---- Products and expense reasons
-const EXPENSE_TYPES = [['stock', 'Mercancía'], ['operating', 'Operativo']];
+const EXPENSE_TYPES = [['stock', 'Mercancía'], ['operating', 'Operativo'], ['personal', 'Personal']];
 
 function expenseTypeSelect(attributes, selected) {
   return `
@@ -519,7 +519,7 @@ async function renderCategories(body, kind) {
 
   const intro = isSale
     ? 'Los productos <b>favoritos</b> (★) salen primero al registrar una venta. Puedes poner un precio y beneficio sugeridos que se rellenan solos, y la <b>garantía</b> que se propone en tickets y facturas. Desactivar un producto lo oculta sin borrar su historial.'
-    : 'Los motivos <b>favoritos</b> (★) aparecen sin tener que escribir al registrar un gasto. Marca como <b>Mercancía</b> las compras de producto para revender (móviles, fundas…) y como <b>Operativo</b> el resto (alquiler, luz, comida…). Así el beneficio neto no cuenta dos veces lo que ya restaste en cada venta.';
+    : 'Los motivos <b>favoritos</b> (★) aparecen sin tener que escribir al registrar un gasto. Marca como <b>Mercancía</b> las compras de producto para revender (móviles, fundas…) como <b>Operativo</b> lo que cuesta llevar la tienda (alquiler, luz, sueldos…) y como <b>Personal</b> lo que sacas de la caja para ti o para casa. El beneficio neto solo resta los operativos: la mercancía ya está descontada en cada venta y lo personal no es un coste del negocio.';
 
   body.innerHTML = `
     <div class="notice" style="margin-bottom:14px">${intro}</div>
@@ -561,7 +561,7 @@ async function renderCategories(body, kind) {
         </div></td>
         <td><input type="color" class="swatch" data-field="color" value="${esc(category.color)}"></td>
         <td><input type="text" data-field="name" value="${esc(category.name)}" style="min-width:160px"></td>
-        ${isSale ? saleCells(category) : `<td>${expenseTypeSelect('data-field="expense_type"', category.expense_type === 'stock' ? 'stock' : 'operating')}</td>`}
+        ${isSale ? saleCells(category) : `<td>${expenseTypeSelect('data-field="expense_type"', category.expense_type || 'operating')}</td>`}
         ${favoriteCell(category)}
         <td><input type="checkbox" data-field="active" ${category.active ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--primary)"></td>
       </tr>`;

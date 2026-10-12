@@ -107,7 +107,7 @@ export async function renderQuarter(body, params) {
       ${kpi('Total facturado', summary.issued.all.total, `${summary.issued.all.count} documento(s)`)}
       ${kpi('Base imponible', summary.issued.all.base, 'sin IVA')}
       ${kpi(`IVA repercutido (${summary.vat_rate}%)`, summary.issued.all.vat, 'incluido en los precios')}
-      ${kpi('Gastos', summary.expenses_total, 'mercancía y operativos')}
+      ${kpi('Gastos', summary.expenses_total, 'mercancía y operativos, sin los personales')}
       ${kpi('Compras de segunda mano', summary.purchases.total, `${summary.purchases.count} contrato(s)`)}
     </div>
     <div class="notice" style="margin-bottom:14px">

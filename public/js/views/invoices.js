@@ -201,7 +201,10 @@ async function renderDetail(root, id) {
 // Picks what comes back and how the money is returned, then opens the refund document to print it.
 async function openRefundDialog(invoice) {
   const { sales, modules } = state.settings;
-  const sale = (await tryApi(`/invoices/${invoice.id}/sale`)) || { found: false };
+  const recorded = (await tryApi(`/invoices/${invoice.id}/sale`)) || { whole: null, lines: {} };
+  // The sale each line belongs to: its own when the document was recorded line by line, else the single one.
+  const saleOfLine = (index) => recorded.lines[index] || recorded.whole;
+  const anySale = recorded.whole || Object.values(recorded.lines)[0] || {};
   const saleCategories = state.categories.filter(category => category.kind === 'sale' && category.active);
   const asksPaymentMethod = modules.payment_methods && sales.ask_payment_method;
   const seesProfit = can('worker_see_daily_profit');
@@ -210,6 +213,9 @@ async function openRefundDialog(invoice) {
   const lines = invoice.items
     .map((item, index) => ({ ...item, index, left: item.qty - (invoice.refunded_qty[index] || 0) }))
     .filter(line => line.left > 0);
+  // Lines recorded on their own go back under their product; the question is only asked for the rest.
+  const asksCategory = lines.some(line => !recorded.lines[line.index]);
+  const knowsProfit = lines.every(line => saleOfLine(line.index));
 
   const lineRow = (line) => `
     <tr>
@@ -243,17 +249,18 @@ async function openRefundDialog(invoice) {
           <input type="checkbox" name="register" checked>
           <span><b>Devolver el dinero y apuntarlo en la caja de hoy</b><span class="muted">Desmárcalo si se cambia por otro producto o se entrega un vale.</span></span>
         </label>
-        <label class="field" data-register-field>Producto de la venta
-          <select name="category">
-            ${saleCategories.map(category => `<option value="${category.id}" ${category.id === sale.category_id ? 'selected' : ''}>${esc(category.name)}</option>`).join('')}
-          </select>
-        </label>
+        ${asksCategory ? `
+          <label class="field" data-register-field>Producto de la venta
+            <select name="category">
+              ${saleCategories.map(category => `<option value="${category.id}" ${category.id === anySale.category_id ? 'selected' : ''}>${esc(category.name)}</option>`).join('')}
+            </select>
+          </label>` : ''}
         ${asksPaymentMethod ? `
           <label class="field" data-register-field>Se devuelve por
-            <select name="payment">${sales.payment_methods.map(method => `<option ${method === sale.payment_method ? 'selected' : ''}>${esc(method)}</option>`).join('')}</select>
+            <select name="payment">${sales.payment_methods.map(method => `<option ${method === anySale.payment_method ? 'selected' : ''}>${esc(method)}</option>`).join('')}</select>
           </label>` : ''}
         ${seesProfit ? `
-          <label class="field" data-register-field>Beneficio que se pierde (€) <span class="hint">${sale.found ? 'calculado con la venta original' : 'no hay venta enlazada: escríbelo'}</span>
+          <label class="field" data-register-field>Beneficio que se pierde (€) <span class="hint">${knowsProfit ? 'calculado con la venta original' : 'no hay venta enlazada: escríbelo'}</span>
             <input class="money" name="profit" inputmode="decimal" placeholder="0,00">
           </label>` : ''}
       </form>`,
@@ -268,12 +275,17 @@ async function openRefundDialog(invoice) {
         line: Number(select.dataset.line), qty: Number(select.value), price: Number(select.dataset.price),
       }));
       const refundTotal = () => Math.round(selected().reduce((sum, line) => sum + line.qty * line.price, 0) * paidShare * 100) / 100;
+      // Each returned line loses its sale's profit in proportion to the money given back.
+      const profitLost = () => selected().reduce((sum, line) => {
+        const sale = saleOfLine(line.line);
+        return sum + (sale && sale.amount ? sale.profit * (line.qty * line.price * paidShare) / sale.amount : 0);
+      }, 0);
 
       function refresh() {
         const total = refundTotal();
         form.querySelector('[data-refund-total]').textContent = money(total);
         form.querySelectorAll('[data-register-field]').forEach(field => field.classList.toggle('hidden', !fields.register.checked));
-        if (fields.profit && sale.found && !profitTyped && sale.amount) fields.profit.value = moneyInput(sale.profit * total / sale.amount);
+        if (fields.profit && knowsProfit && !profitTyped) fields.profit.value = moneyInput(profitLost());
       }
       fields.profit?.addEventListener('input', () => { profitTyped = true; });
       form.addEventListener('change', refresh);
@@ -287,9 +299,10 @@ async function openRefundDialog(invoice) {
           reason: fields.reason.value,
           register: fields.register.checked
             ? {
-              category_id: Number(fields.category.value),
+              category_id: fields.category ? Number(fields.category.value) : undefined,
               payment_method: fields.payment ? fields.payment.value : '',
-              profit: Number.isFinite(profit) ? profit : undefined,
+              // Only a figure typed by hand is sent; otherwise the server works it out line by line.
+              profit: profitTyped || !knowsProfit ? (Number.isFinite(profit) ? profit : undefined) : undefined,
             }
             : null,
         };
@@ -391,6 +404,13 @@ async function renderEditor(root, params, kind) {
   }
   if (!sourceTicket) draft.items.forEach(suggestWarranty);
 
+  // Proposes the register product the same way, until the user picks one for that line.
+  function suggestRegisterCategory(item) {
+    if (item.categoryChosenByUser) return;
+    const category = categoryMatching(item.description);
+    if (category) item.register_category = category.id;
+  }
+
   // ---- markup
   const required = isFullInvoice ? ' <span class="neg">*</span>' : '';
   const customerHint = isFullInvoice ? '(obligatorios en una factura completa)' : '(opcional)';
@@ -405,15 +425,10 @@ async function renderEditor(root, params, kind) {
         <input type="checkbox" name="register" checked>
         <span><b>Registrar también como venta en la caja de hoy</b><span class="muted">Desmárcalo si ya apuntaste la venta.</span></span>
       </label>
-      <div class="settings-grid" data-register-fields>
-        <label class="field">Producto
-          <select name="register_category">
-            ${saleCategories.map(category => `<option value="${category.id}">${esc(category.name)}</option>`).join('')}
-          </select>
-        </label>
-        <label class="field">Beneficio (€)<input class="money" name="register_profit" inputmode="decimal" placeholder="0,00"></label>
+      <div class="muted" style="margin:6px 0 0 28px" data-register-fields>
+        Cada línea se apunta como una venta, con el producto y el beneficio que indiques en ella.
         ${asksPaymentMethod ? `
-          <label class="field">Forma de pago
+          <label class="field" style="margin-top:10px;max-width:260px">Forma de pago
             <select name="register_payment">
               ${state.settings.sales.payment_methods.map(method => `<option>${esc(method)}</option>`).join('')}
             </select>
@@ -512,6 +527,16 @@ async function renderEditor(root, params, kind) {
           <input type="text" data-field="description" placeholder="Descripción del producto o servicio" value="${esc(item.description)}">
           <input type="text" data-field="detail" placeholder="IMEI / nº de serie / detalle (opcional)" value="${esc(item.detail || '')}">
           <select data-field="warranty" title="Garantía de esta línea">${warrantyOptions(item.warranty || '')}</select>
+          ${offersToRegisterSale ? `
+            <div class="register-row">
+              <span>En caja:</span>
+              <select data-field="register_category" title="Producto con el que se apunta esta línea en caja">
+                <option value="">Elige producto…</option>
+                ${saleCategories.map(category => `<option value="${category.id}" ${String(category.id) === String(item.register_category) ? 'selected' : ''}>${esc(category.name)}</option>`).join('')}
+              </select>
+              <input type="text" class="num" data-field="register_profit" inputmode="decimal" placeholder="Beneficio €"
+                     value="${esc(item.register_profit ?? '')}" title="Beneficio de esta línea (todas sus unidades)">
+            </div>` : ''}
         </div>
         <input type="number" min="1" data-field="qty" value="${esc(item.qty)}" title="Cantidad">
         <input type="text" class="num" data-field="price" inputmode="decimal" placeholder="Precio"
@@ -596,18 +621,21 @@ async function renderEditor(root, params, kind) {
     if (sourceTicket) return { replaces_id: sourceTicket.id };
     if (saleId) return { movement_id: saleId };
     if (!form.elements.register.checked) return {};
-    const profit = parseMoney(form.elements.register_profit.value);
-    if (!Number.isFinite(profit)) {
-      toast('Indica el beneficio de la venta (o desmarca "Registrar en caja")', 'err');
-      form.elements.register_profit.focus();
-      return null;
+    // One entry per line that will be saved, in the same order as the items sent.
+    const lines = [];
+    for (const [index, item] of draft.items.entries()) {
+      if (!item.description.trim()) continue;
+      const profit = parseMoney(item.register_profit);
+      const missing = !item.register_category ? 'register_category' : !Number.isFinite(profit) ? 'register_profit' : null;
+      if (missing) {
+        toast(`Línea ${index + 1}: indica el producto y el beneficio para la caja (o desmarca "Registrar en caja")`, 'err');
+        itemsContainer.querySelector(`[data-index="${index}"] [data-field="${missing}"]`).focus();
+        return null;
+      }
+      lines.push({ category_id: Number(item.register_category), profit });
     }
     return {
-      register: {
-        profit,
-        category_id: Number(form.elements.register_category.value),
-        payment_method: form.elements.register_payment ? form.elements.register_payment.value : '',
-      },
+      register: { lines, payment_method: form.elements.register_payment ? form.elements.register_payment.value : '' },
     };
   }
 
@@ -653,14 +681,17 @@ async function renderEditor(root, params, kind) {
     const item = itemOf(input);
     item[input.dataset.field] = input.value;
     if (input.dataset.field === 'warranty') item.warrantyChosenByUser = true;
+    if (input.dataset.field === 'register_category') item.categoryChosenByUser = true;
     renderPreview();
   });
   // When a description is finished, propose the warranty and the register product that match it.
   on(itemsContainer, 'change', '[data-field="description"]', (input) => {
     const item = itemOf(input);
     suggestWarranty(item);
-    input.closest('[data-index]').querySelector('[data-field="warranty"]').value = item.warranty || '';
-    selectRegisterCategory();
+    const line = input.closest('[data-index]');
+    line.querySelector('[data-field="warranty"]').value = item.warranty || '';
+    suggestRegisterCategory(item);
+    if (offersToRegisterSale) line.querySelector('[data-field="register_category"]').value = item.register_category || '';
     renderPreview();
   });
   on(itemsContainer, 'click', '[data-remove-item]', (button) => {
@@ -682,17 +713,12 @@ async function renderEditor(root, params, kind) {
   if (offersToRegisterSale) {
     form.elements.register.addEventListener('change', () => {
       root.querySelector('[data-register-fields]').classList.toggle('hidden', !form.elements.register.checked);
+      itemsContainer.classList.toggle('no-register', !form.elements.register.checked);
     });
   }
 
-  function selectRegisterCategory() {
-    if (!offersToRegisterSale) return;
-    const category = categoryMatching(draft.items[0].description);
-    if (category) form.elements.register_category.value = category.id;
-  }
-
+  draft.items.forEach(suggestRegisterCategory);
   renderItems();
   renderPreview();
-  selectRegisterCategory();
   redrawOnResize(previewFrame, renderPreview);
 }

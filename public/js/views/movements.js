@@ -10,8 +10,8 @@ const options = (items) => items.map(item => `<option value="${item.id}">${esc(i
 
 function typeCell(movement) {
   if (movement.type === 'sale') return '<span style="color:var(--sale);font-weight:600">Venta</span>';
-  const stockNote = movement.expense_type === 'stock' ? ' <span class="faint">· mercancía</span>' : '';
-  return `<span style="color:var(--expense);font-weight:600">Gasto</span>${stockNote}`;
+  const typeNote = { stock: 'mercancía', personal: 'personal' }[movement.expense_type];
+  return `<span style="color:var(--expense);font-weight:600">Gasto</span>${typeNote ? ` <span class="faint">· ${typeNote}</span>` : ''}`;
 }
 
 function actionsCell(movement) {

@@ -27,6 +27,7 @@ function csvCell(value) {
   const text = String(value ?? '');
   return /[;"\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
+const EXPENSE_TYPE_NAMES = { stock: 'mercancia', operating: 'operativo', personal: 'personal' };
 const csvNumber = (amount) => Number(amount).toFixed(2).replace('.', ',');
 
 route('GET', '/api/admin/export.csv', 'admin', ({ query, res }) => {
@@ -37,7 +38,7 @@ route('GET', '/api/admin/export.csv', 'admin', ({ query, res }) => {
     return [
       row.date, String(row.created_at).slice(11, 16), isSale ? 'venta' : 'gasto', row.category_name, row.description,
       csvNumber(euros(row.amount)), isSale ? csvNumber(euros(row.profit)) : '', row.payment_method, row.user_name,
-      isSale ? '' : (row.expense_type === 'stock' ? 'mercancia' : 'operativo'),
+      isSale ? '' : EXPENSE_TYPE_NAMES[row.expense_type] || 'operativo',
     ].map(csvCell).join(';');
   });
   res.sendRaw(200, BOM + [EXPORT_COLUMNS.join(';'), ...lines].join('\r\n'), 'text/csv; charset=utf-8', `movimientos_${from}_${to}.csv`);
@@ -85,7 +86,8 @@ function toIsoDate(value) {
 function findOrCreateCategory(type, name, expenseTypeCell) {
   const existing = get('SELECT id FROM categories WHERE kind = ? AND name = ? COLLATE NOCASE', type, name);
   if (existing) return existing.id;
-  const expenseType = type === 'expense' ? (/merc|stock/i.test(expenseTypeCell) ? 'stock' : 'operating') : null;
+  const typeFromCell = /merc|stock/i.test(expenseTypeCell) ? 'stock' : /personal/i.test(expenseTypeCell) ? 'personal' : 'operating';
+  const expenseType = type === 'expense' ? typeFromCell : null;
   return run('INSERT INTO categories (kind, name, color, expense_type, sort) VALUES (?,?,?,?,999)', type, name, '#64748b', expenseType).id;
 }
 

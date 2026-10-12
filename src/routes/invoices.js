@@ -115,25 +115,52 @@ function takeNextNumber(kind) {
   return number;
 }
 
-// An invoice can point at a sale already in the register, or create that sale itself.
+// Shares `total` among parts in proportion to their weights, in whole cents that add up exactly.
+function shareOut(total, weights) {
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+  let given = 0;
+  return weights.map((weight, index) => {
+    const share = index === weights.length - 1 ? total - given : Math.round(weightSum ? total * weight / weightSum : 0);
+    given += share;
+    return share;
+  });
+}
+
+// An invoice can point at a sale already in the register, or create its sales itself: one per line,
+// each under its own product, so the register and the charts show what was really sold.
 // An invoice that replaces a ticket does neither: the sale was recorded with the ticket.
 function linkToSale(invoiceId, body, sale, user) {
   if (body.movement_id) {
     run('UPDATE movements SET invoice_id = ? WHERE id = ? AND type = ? AND invoice_id IS NULL', invoiceId, Number(body.movement_id), 'sale');
     return;
   }
-  if (!body.register || !body.register.category_id) return;
-  const m = validateMovement({
-    type: 'sale',
-    category_id: body.register.category_id,
-    amount: euros(sale.total),
-    profit: body.register.profit,
-    payment_method: body.register.payment_method,
-    description: sale.items.map(item => [item.description, item.detail].filter(Boolean).join(' ')).join(' · '),
-  }, user);
-  run(`INSERT INTO movements (type, date, category_id, description, amount, profit, payment_method, user_id, invoice_id)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-    'sale', sale.date, m.category_id, m.description, m.amount, m.profit, m.payment_method, user.id, invoiceId);
+  const { register } = body;
+  if (!register) return;
+  // register.lines[i] = { category_id, profit } for sale.items[i]. Without it, the whole document is one sale.
+  const perLine = Array.isArray(register.lines);
+  if (perLine && register.lines.length !== sale.items.length) fail(400, 'Cada línea necesita su producto y su beneficio');
+  if (!perLine && !register.category_id) return;
+  const lines = perLine ? register.lines : [{ category_id: register.category_id, profit: register.profit }];
+
+  const gross = perLine ? sale.items.map(item => item.qty * item.price) : [sale.total + sale.discount];
+  // A discount lowers what each line brought in, and comes out of its profit.
+  const discounts = shareOut(sale.discount, gross);
+  lines.forEach((line, index) => {
+    const amount = gross[index] - discounts[index];
+    if (amount <= 0) return; // a free line is not a sale
+    const items = perLine ? [sale.items[index]] : sale.items;
+    const m = validateMovement({
+      type: 'sale',
+      category_id: line.category_id,
+      amount: euros(amount),
+      profit: perLine ? euros((cents(line.profit) ?? NaN) - discounts[index]) : line.profit,
+      payment_method: register.payment_method,
+      description: items.map(item => [item.qty > 1 ? `${item.qty} ×` : '', item.description, item.detail].filter(Boolean).join(' ')).join(' · '),
+    }, user);
+    run(`INSERT INTO movements (type, date, category_id, description, amount, profit, payment_method, user_id, invoice_id, invoice_line)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      'sale', sale.date, m.category_id, m.description, m.amount, m.profit, m.payment_method, user.id, invoiceId, perLine ? index : null);
+  });
 }
 
 route('POST', '/api/invoices', 'user', ({ user, body }) => {
@@ -170,7 +197,7 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
       JSON.stringify(items), subtotal, discount, total, str(body.notes, 500), user.id,
       replacedTicket ? replacedTicket.id : null, showVat ? 1 : 0);
     linkInvoice(id);
-    if (!replacedTicket) linkToSale(id, body, { items, total, date }, user);
+    if (!replacedTicket) linkToSale(id, body, { items, total, discount, date }, user);
     return { ok: true, id, number };
   });
 });
@@ -185,10 +212,15 @@ function takeNextRefundNumber() {
   return number;
 }
 
-// The sale behind a document. For an invoice that replaced a ticket, the sale hangs from the ticket.
-function saleOf(invoice) {
-  return get(`SELECT * FROM movements WHERE invoice_id IN (?, ?) AND type = 'sale' AND amount > 0 AND deleted_at IS NULL ORDER BY id LIMIT 1`,
+// The sales behind a document. For an invoice that replaced a ticket, they hang from the ticket.
+// Documents recorded line by line have one sale per line; older ones have a single sale for everything.
+function salesOf(invoice) {
+  const sales = all(`SELECT * FROM movements WHERE invoice_id IN (?, ?) AND type = 'sale' AND amount > 0 AND deleted_at IS NULL ORDER BY id`,
     invoice.id, invoice.replaces_id || invoice.id);
+  return {
+    whole: sales.find(sale => sale.invoice_line === null) || null,
+    byLine: Object.fromEntries(sales.filter(sale => sale.invoice_line !== null).map(sale => [sale.invoice_line, sale])),
+  };
 }
 
 // body: { items: [{ line, qty }], reason, register: { category_id, payment_method, profit } | null }
@@ -228,43 +260,55 @@ route('POST', '/api/invoices/:id/refund', 'user', ({ user, params, body }) => {
       number, original.kind, localDate(), original.customer_name, original.customer_nif, original.customer_address, original.customer_postcode,
       original.customer_city, original.customer_province, original.customer_phone, original.customer_id,
       JSON.stringify(items), -gross, -(gross - refunded), -refunded, reason, user.id, original.show_vat, original.id);
-    if (body.register) registerRefund(id, number, original, { items, refunded }, body.register, user);
+    if (body.register) registerRefund(id, number, original, { items, gross, refunded }, body.register, user);
     return { ok: true, id, number };
   });
 });
 
-// Takes the money out of the register as a negative sale, so the day's totals and the profit go down with it.
+// Takes the money out of the register as negative sales, one per returned line and under that line's
+// product, so the day's totals, the profit and the charts go down where they went up.
 function registerRefund(refundId, number, original, refund, register, user) {
-  const sale = saleOf(original);
-  const category = get("SELECT id FROM categories WHERE id = ? AND kind = 'sale'", Number(register.category_id) || (sale && sale.category_id));
-  if (!category) fail(400, 'Elige el producto de la venta que se devuelve');
-  // Without a figure from the user, the profit lost is the sale's profit in proportion to what is returned.
-  const proportional = sale && sale.amount ? Math.round(sale.profit * refund.refunded / sale.amount) : 0;
-  const typed = cents(register.profit);
-  const profitLost = typed === null ? proportional : typed;
-  const description = `Devolución ${number} de ${original.number} · ${refund.items.map(item => item.description).join(', ')}`;
-  run(`INSERT INTO movements (type, date, category_id, description, amount, profit, payment_method, user_id, invoice_id)
-       VALUES ('sale', ?, ?, ?, ?, ?, ?, ?, ?)`,
-    localDate(), category.id, str(description, 300), -refund.refunded, -profitLost, str(register.payment_method, 40), user.id, refundId);
+  const sales = salesOf(original);
+  const amounts = shareOut(refund.refunded, refund.items.map(item => -item.qty * item.price));
+  const typedProfit = cents(register.profit);
+
+  refund.items.forEach((item, index) => {
+    const sale = sales.byLine[item.line] || sales.whole;
+    // A line recorded on its own goes back under its product; otherwise the user says which one.
+    const categoryId = (sales.byLine[item.line] && sale.category_id) || Number(register.category_id) || (sale && sale.category_id);
+    const category = get("SELECT id FROM categories WHERE id = ? AND kind = 'sale'", categoryId);
+    if (!category) fail(400, 'Elige el producto de la venta que se devuelve');
+    // Without a figure from the user, the profit lost is the sale's profit in proportion to what is returned.
+    const proportional = sale && sale.amount ? Math.round(sale.profit * amounts[index] / sale.amount) : 0;
+    const profitLost = typedProfit === null ? proportional : Math.round(refund.refunded ? typedProfit * amounts[index] / refund.refunded : 0);
+    run(`INSERT INTO movements (type, date, category_id, description, amount, profit, payment_method, user_id, invoice_id, invoice_line)
+         VALUES ('sale', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      localDate(), category.id, str(`Devolución ${number} de ${original.number} · ${item.description}`, 300),
+      -amounts[index], -profitLost, str(register.payment_method, 40), user.id, refundId, index);
+  });
 }
 
 // What the refund dialog needs to propose a product and the profit that goes with the money.
 route('GET', '/api/invoices/:id/sale', 'user', ({ user, params }) => {
   const invoice = get('SELECT * FROM invoices WHERE id = ?', Number(params.id));
   if (!invoice) fail(404, 'Documento no encontrado');
-  const sale = saleOf(invoice);
-  if (!sale) return { found: false };
   const seesProfit = isAdmin(user) || !!getSetting('permissions').worker_see_daily_profit;
-  return {
-    found: true, category_id: sale.category_id, payment_method: sale.payment_method,
+  const summary = (sale) => sale && {
+    category_id: sale.category_id, payment_method: sale.payment_method,
     amount: euros(sale.amount), profit: seesProfit ? euros(sale.profit) : undefined,
   };
+  const sales = salesOf(invoice);
+  // `whole` is the single sale of a document recorded in one go; `lines` holds one sale per line index.
+  return {
+    whole: summary(sales.whole),
+    lines: Object.fromEntries(Object.entries(sales.byLine).map(([line, sale]) => [line, summary(sale)])),
+  };
 });
-
-module.exports = { oldestDateVisibleTo };
 
 // Voiding keeps the document and its number; numbers are never reused.
 route('POST', '/api/invoices/:id/void', 'admin', ({ params }) => {
   run('UPDATE invoices SET voided = 1 WHERE id = ?', Number(params.id));
   return { ok: true };
 });
+
+module.exports = { oldestDateVisibleTo };

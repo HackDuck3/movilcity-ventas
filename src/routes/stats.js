@@ -12,18 +12,21 @@ function totalsFor(from, to) {
                      FROM movements WHERE type='sale' AND deleted_at IS NULL AND date BETWEEN ? AND ?`, from, to);
   const expenses = get(`SELECT COALESCE(SUM(m.amount),0) AS total,
                                COALESCE(SUM(CASE WHEN c.expense_type='stock' THEN m.amount ELSE 0 END),0) AS stock,
-                               COALESCE(SUM(CASE WHEN c.expense_type='stock' THEN 0 ELSE m.amount END),0) AS operating
+                               COALESCE(SUM(CASE WHEN c.expense_type='personal' THEN m.amount ELSE 0 END),0) AS personal
                         FROM movements m LEFT JOIN categories c ON c.id = m.category_id
                         WHERE m.type='expense' AND m.deleted_at IS NULL AND m.date BETWEEN ? AND ?`, from, to);
+  const operating = expenses.total - expenses.stock - expenses.personal;
   return {
     sales_count: sales.count,
     sales: euros(sales.amount),
     profit: euros(sales.profit),
     expenses: euros(expenses.total),
     expenses_stock: euros(expenses.stock),
-    expenses_operating: euros(expenses.operating),
-    // Stock purchases are already discounted in each sale's profit, so only running costs are subtracted.
-    net: euros(sales.profit - expenses.operating),
+    expenses_operating: euros(operating),
+    expenses_personal: euros(expenses.personal),
+    // Stock purchases are already discounted in each sale's profit and personal spending is not a cost
+    // of the business, so only running costs are subtracted. Cash flow counts everything that left the till.
+    net: euros(sales.profit - operating),
     cash: euros(sales.amount - expenses.total),
     avg_ticket: sales.count ? euros(Math.round(sales.amount / sales.count)) : 0,
     margin: sales.amount ? Math.round((sales.profit / sales.amount) * 1000) / 10 : 0,

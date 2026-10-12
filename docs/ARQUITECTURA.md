@@ -130,6 +130,12 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 - Al guardar, el servidor copia el **texto** de la garantía dentro de cada línea (`warranty_text`). Así, cambiar un texto en Ajustes no altera documentos ya emitidos.
 - Cada documento guarda `show_vat`: si se imprime el desglose de IVA o solo el total.
 
+### Un ticket, una venta por línea
+
+- Al guardar un ticket o factura marcando "Registrar en caja", cada línea se apunta como una venta propia, con su producto y su beneficio (`register.lines` en `POST /api/invoices`). `movements.invoice_line` guarda a qué línea corresponde.
+- El descuento del documento se reparte entre las líneas en proporción a su importe y sale del beneficio de cada una.
+- Los documentos anteriores a este cambio tienen una única venta con `invoice_line` vacío; las devoluciones entienden los dos casos.
+
 ### Clientes
 
 - No hay que darlos de alta: `rememberCustomer()` (`src/customers.js`) crea o completa la ficha al guardar una factura o una reparación que lleve NIF o teléfono. Un nombre solo no basta para distinguir a dos personas.
@@ -138,7 +144,7 @@ El esquema completo, comentado, está al principio de `src/db.js`.
 ### Devoluciones
 
 - `POST /api/invoices/:id/refund` crea el documento rectificativo en su propia serie (`invoice.refund_prefix`). Cada línea guarda el índice de la línea original (`line`) y la cantidad en negativo, y así se sabe cuántas unidades quedan por devolver.
-- El dinero sale de caja como una venta con importe y beneficio negativos, enlazada al documento. Las sumas bajan solas; los recuentos de ventas ignoran los importes negativos.
+- El dinero sale de caja como ventas con importe y beneficio negativos, una por línea devuelta y con el producto de esa línea. Las sumas bajan solas; los recuentos de ventas ignoran los importes negativos.
 
 ### Copia completa cifrada
 

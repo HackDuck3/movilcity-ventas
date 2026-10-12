@@ -4,6 +4,7 @@ import { groupedBars, rankingBars } from '../charts.js';
 import { renderQuarter } from './quarter.js';
 
 const DAY_MS = 86400e3;
+const EXPENSE_TYPE_LABELS = { stock: 'mercancía', operating: 'operativo', personal: 'personal' };
 const MAX_DAYS_SHOWN_PER_DAY = 62; // longer periods are charted per month
 
 const PRESETS = [
@@ -160,7 +161,7 @@ async function renderSummary(body, params) {
     stats.byCategory.map(c => ({ label: c.name, value: c.profit, extra: `${c.n} uds · ${money(c.amount)}` })),
     { color: 'var(--series-2)', max: 10 });
   rankingBars(content.querySelector('[data-expenses]'),
-    stats.expenseByCategory.map(c => ({ label: c.name, value: c.amount, extra: c.expense_type === 'stock' ? 'mercancía' : 'operativo' })),
+    stats.expenseByCategory.map(c => ({ label: c.name, value: c.amount, extra: EXPENSE_TYPE_LABELS[c.expense_type] || 'operativo' })),
     { color: 'var(--expense)', max: 8 });
   rankingBars(content.querySelector('[data-payments]'),
     stats.byPayment.map(p => ({ label: p.method, value: p.amount, extra: `${p.n} ventas` })),
@@ -185,7 +186,7 @@ function summaryHtml(stats, from, to, dayCount) {
       Hay <b>${stats.deletedCount}</b> apunte(s) borrado(s) en este periodo.
       <a href="#/movimientos?desde=${from}&hasta=${to}&borrados=1">Revisar</a>
     </div>` : '';
-  const netHint = 'Beneficio de ventas menos gastos operativos (la compra de mercancía ya está descontada en el beneficio de cada venta)';
+  const netHint = 'Beneficio de ventas menos gastos operativos. La compra de mercancía ya está descontada en el beneficio de cada venta y los gastos personales no son un coste del negocio';
 
   return `
     <div class="muted" style="margin:-4px 0 12px">${period} · ${dayCount} ${dayCount === 1 ? 'día' : 'días'}</div>
@@ -193,7 +194,7 @@ function summaryHtml(stats, from, to, dayCount) {
     <div class="kpis">
       ${heroKpi('Ventas (ingresos)', totals.sales, 'var(--series-1)', changeBadge(totals.sales, previous.sales))}
       ${heroKpi('Beneficio de ventas', totals.profit, 'var(--series-2)', changeBadge(totals.profit, previous.profit))}
-      ${heroKpi('Gastos', totals.expenses, 'var(--expense)', `Mercancía ${money(totals.expenses_stock)} · Operativos ${money(totals.expenses_operating)}`)}
+      ${heroKpi('Gastos', totals.expenses, 'var(--expense)', `Mercancía ${money(totals.expenses_stock)} · Operativos ${money(totals.expenses_operating)}${totals.expenses_personal ? ` · Personales ${money(totals.expenses_personal)}` : ''}`)}
       ${heroKpi('Beneficio neto', totals.net, 'var(--primary)', `<span title="${netHint}">beneficio − gastos operativos ⓘ</span>`)}
     </div>
     <div class="kpis">
@@ -313,6 +314,7 @@ async function renderYear(body, params) {
     <td class="r num">${money(row.profit)}</td>
     <td class="r num">${money(row.expenses_stock)}</td>
     <td class="r num">${money(row.expenses_operating)}</td>
+    <td class="r num">${money(row.expenses_personal)}</td>
     <td class="r num ${row.net < 0 ? 'neg' : ''}"><b>${money(row.net)}</b></td>
     <td class="r num ${row.cash < 0 ? 'neg' : ''}">${money(row.cash)}</td>`;
 
@@ -335,7 +337,7 @@ async function renderYear(body, params) {
       <table class="t">
         <thead><tr>
           <th>Mes</th><th class="r">Nº ventas</th><th class="r">Ventas</th><th class="r">Beneficio</th>
-          <th class="r">Gastos mercancía</th><th class="r">Gastos operativos</th><th class="r">Beneficio neto</th><th class="r">Flujo de caja</th>
+          <th class="r">Gastos mercancía</th><th class="r">Gastos operativos</th><th class="r">Gastos personales</th><th class="r">Beneficio neto</th><th class="r">Flujo de caja</th>
         </tr></thead>
         <tbody>
           ${months.map(month => `
