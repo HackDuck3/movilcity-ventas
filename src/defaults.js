@@ -193,6 +193,7 @@ const DEFAULT_SETTINGS = {
     layout: 'sidebar',       // A4 design: 'sidebar' | 'banner' | 'classic'
     ticket_format: 'ticket', // 'ticket' (thermal printer) | 'a4'
     paper_width: 58,         // thermal paper in mm: 58 or 80
+    ticket_margin_left: 5,   // mm between the paper's left edge and the first printed column
     qr_url: '',              // printed as a QR code at the foot of tickets when set
     qr_caption: 'Escanea y déjanos tu opinión',
   },

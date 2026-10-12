@@ -197,6 +197,7 @@ const SCHEMAS = {
         fields: [
           { name: 'ticket_format', type: 'select', label: 'Dónde se imprimen', options: [['ticket', 'Impresora térmica de tickets'], ['a4', 'Folio A4, con el diseño de la factura']] },
           { name: 'paper_width', type: 'select', label: 'Ancho del papel térmico', hint: 'Lo indica la etiqueta de la impresora', options: [['58', '58 mm'], ['80', '80 mm']] },
+          { name: 'ticket_margin_left', type: 'number', label: 'Margen izquierdo del ticket (mm)', hint: 'Súbelo si el texto sale cortado por la izquierda; bájalo si se corta por la derecha' },
           { name: 'qr_url', type: 'text', label: 'Enlace del código QR al pie', hint: 'Ej.: tus reseñas de Google o https://wa.me/34600000000. Vacío = sin QR', wide: true },
           { name: 'qr_caption', type: 'text', label: 'Texto bajo el código QR' },
         ],

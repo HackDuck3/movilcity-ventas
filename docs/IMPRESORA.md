@@ -37,6 +37,23 @@ En *Administrar → Preferencias de impresión*:
 - Haz el mismo cambio en *Propiedades de impresora → Avanzadas → Valores predeterminados de impresión*, que es de donde los programas toman el tamaño.
 - Si los tickets salen cortados a lo ancho, es que hay seleccionado un papel de 80 mm.
 
+## Si el texto sale cortado por un lado
+
+El cabezal imprime unos 48 mm de los 58 mm del papel, y cada driver coloca esa zona a su manera. En *Ajustes → Tickets y facturas → Margen izquierdo del ticket (mm)* se desplaza el ticket:
+
+- Cortado por la **izquierda**: sube el margen (prueba de 1 en 1).
+- Cortado por la **derecha**: bájalo, hasta 0 si hace falta.
+
+El valor inicial es 5 mm, que centra el ticket en el papel de 58 mm. Con papel de 80 mm suele ir bien 4 o 5.
+
+## Si el texto sale flojo
+
+La aplicación imprime los tickets en negrita para que el trazo sea grueso. Si aun así sale claro:
+
+- En *Preferencias de impresión* del driver, sube la **densidad** u **oscuridad** (*Density*, *Darkness*) si la ofrece.
+- Comprueba que el papel térmico no esté viejo o haya estado al sol o al calor: pierde sensibilidad.
+- Limpia el cabezal con un bastoncillo y alcohol isopropílico, con la impresora apagada y fría.
+
 ## Imprimir desde la app (Chrome o Edge)
 
 La primera vez, en la ventana de impresión abre **Más ajustes** y deja:

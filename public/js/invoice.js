@@ -235,6 +235,8 @@ function pageSize(format, printRoot) {
 export function printDocument(html, { format = 'a4', filename = 'documento' } = {}) {
   const root = document.getElementById('print-root');
   root.innerHTML = html;
+  // On screen the ticket is centred; on paper it starts where the print head does.
+  if (format === 'ticket') root.firstElementChild.style.marginLeft = `${Number(state.settings.invoice.ticket_margin_left) || 0}mm`;
   const style = document.createElement('style');
   style.textContent = `@page { size: ${pageSize(format, root)}; margin: 0; }`;
   document.head.appendChild(style);
