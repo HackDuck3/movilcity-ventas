@@ -6,6 +6,7 @@ const { str, isColor } = require('../utils');
 
 const MAX_LOGO_LENGTH = 1_500_000;
 const LONG_TEXT_FIELDS = ['conditions', 'terms'];
+const MAX_QR_LENGTH = 213; // what fits in the largest code public/js/qr.js draws
 const isColorField = (field) => field.startsWith('color') || field === 'primary' || field === 'accent';
 
 // Coerces an incoming value to the type of its default. Returns undefined to keep the current value.
@@ -35,6 +36,9 @@ route('PUT', '/api/admin/settings/:key', 'admin', ({ params, body }) => {
   for (const field of Object.keys(defaults)) {
     if (!(field in body)) continue;
     const value = sanitize(field, body[field], defaults[field]);
+    if (field === 'qr_url' && Buffer.byteLength(value) > MAX_QR_LENGTH) {
+      fail(400, `El enlace del código QR es demasiado largo (${Buffer.byteLength(value)} caracteres; máximo ${MAX_QR_LENGTH}). Usa un enlace corto, por ejemplo el de "Compartir" en Google Maps.`);
+    }
     if (value !== undefined) next[field] = value;
   }
   setSetting(params.key, next);

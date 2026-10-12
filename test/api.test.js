@@ -312,6 +312,7 @@ test('notices start with two templates and admins can write more', async () => {
 });
 
 test('settings are validated and saved', async () => {
+  assert.equal((await admin('PUT', '/api/admin/settings/invoice', { qr_url: `https://example.com/${'x'.repeat(220)}` })).status, 400);
   const saved = await admin('PUT', '/api/admin/settings/invoice', {
     vat_rate: 10, color_title: 'not-a-colour',
     warranties: [{ name: 'Custom', text: 'One month' }, { name: '', text: 'ignored' }],
