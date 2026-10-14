@@ -53,14 +53,30 @@ function readJsonBody(req) {
 
 // Unknown paths fall back to index.html: the web app does its own routing.
 function serveStatic(res, pathname) {
-  let file = path.normalize(path.join(PUBLIC_DIR, decodeURIComponent(pathname)));
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    res.writeHead(400);
+    return res.end(); // a malformed %-sequence, usually a bot probing the server
+  }
+  let file = path.normalize(path.join(PUBLIC_DIR, decoded));
   if (!file.startsWith(PUBLIC_DIR)) {
     res.writeHead(403);
     return res.end();
   }
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(PUBLIC_DIR, 'index.html');
-  res.writeHead(200, { 'Content-Type': MIME_TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
-  fs.createReadStream(file).pipe(res);
+  res.writeHead(200, {
+    'Content-Type': MIME_TYPES[path.extname(file)] || 'application/octet-stream',
+    'Cache-Control': 'no-cache',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  streamFile(file, res);
+}
+
+// A read error must end this one response, not the whole process.
+function streamFile(file, res) {
+  fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
 }
 
 // Adds the response helpers that route handlers use (setCookie, sendJson, sendRaw, sendFile).
@@ -90,7 +106,7 @@ function addResponseHelpers(res) {
       'X-Content-Type-Options': 'nosniff',
       'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     });
-    fs.createReadStream(file).pipe(res);
+    streamFile(file, res);
   };
 }
 
@@ -125,7 +141,13 @@ async function handleApi(req, res, url) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://localhost');
+  let url;
+  try {
+    url = new URL(req.url, 'http://localhost');
+  } catch {
+    res.writeHead(400);
+    return res.end();
+  }
   if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
 
   addResponseHelpers(res);

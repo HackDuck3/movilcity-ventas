@@ -59,7 +59,7 @@ function sheetCopy(repair, settings, { label, showUnlock }) {
     ${repair.voided ? '<div class="void-stamp">ANULADA</div>' : ''}
     <header>
       <div>
-        ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
+        ${shop.logo ? `<img class="logo" src="${esc(shop.logo)}" alt="">` : ''}
         <h2>${esc(shop.name)}</h2>
         <div class="shop-lines">${shopLines(shop)}</div>
       </div>
@@ -121,7 +121,7 @@ export function repairReceipt(repair, settings) {
   const conditions = config.conditions.split('\n').filter(Boolean).map(text => `<p>${esc(text)}</p>`).join('');
 
   return `<div class="${thermalClass(settings)} repair-receipt">
-    ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
+    ${shop.logo ? `<img class="logo" src="${esc(shop.logo)}" alt="">` : ''}
     <div class="c"><h2>${esc(shop.name)}</h2>${shopLines(shop)}</div>
     <hr>
     <div class="c big">RESGUARDO DE REPARACIÓN</div>

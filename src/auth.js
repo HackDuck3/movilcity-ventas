@@ -38,19 +38,24 @@ function userFromToken(token) {
   return { id: row.id, username: row.username, name: row.name, role: row.role };
 }
 
-// Login rate limit: 10 failed attempts per IP every 15 minutes.
+// Login rate limit: 10 failed attempts every 15 minutes for one user name from one address.
+// Behind Umbrel's proxy every request arrives from the same address, so the address alone would let
+// one person's typos lock everybody out.
 const attempts = new Map();
-function tooManyAttempts(ip) {
-  const a = attempts.get(ip);
+const attemptKey = (ip, username) => `${ip}|${String(username || '').toLowerCase()}`;
+function tooManyAttempts(ip, username) {
+  const key = attemptKey(ip, username);
+  const a = attempts.get(key);
   if (!a) return false;
-  if (Date.now() - a.first > 15 * 60e3) { attempts.delete(ip); return false; }
+  if (Date.now() - a.first > 15 * 60e3) { attempts.delete(key); return false; }
   return a.count >= 10;
 }
-function registerFailure(ip) {
-  const a = attempts.get(ip) || { count: 0, first: Date.now() };
-  a.count++; attempts.set(ip, a);
+function registerFailure(ip, username) {
+  const key = attemptKey(ip, username);
+  const a = attempts.get(key) || { count: 0, first: Date.now() };
+  a.count++; attempts.set(key, a);
 }
-function clearFailures(ip) { attempts.delete(ip); }
+function clearFailures(ip, username) { attempts.delete(attemptKey(ip, username)); }
 
 module.exports = {
   hashPassword, verifyPassword, createSession, destroySession, userFromToken,

@@ -32,14 +32,17 @@ function stageOf(repair) {
   return repair.ready_at ? 'ready' : 'pending';
 }
 
-function toResponse(repair) {
+// The part cost reveals the margin, so workers only see it when they are allowed to see profit.
+const seesPartCost = (user) => user.role === 'admin' || !!getSetting('permissions').worker_see_daily_profit;
+
+function toResponse(repair, user) {
   return {
     ...repair,
     stage: stageOf(repair),
     faults: JSON.parse(repair.faults),
     amount: eurosOrNull(repair.amount),
     deposit: eurosOrNull(repair.deposit),
-    part_cost: eurosOrNull(repair.part_cost),
+    part_cost: seesPartCost(user) ? eurosOrNull(repair.part_cost) : undefined,
   };
 }
 
@@ -118,7 +121,7 @@ route('GET', '/api/repairs', 'user', ({ user, query }) => {
     conditions.push('(r.number LIKE ? OR r.customer_name LIKE ? OR r.customer_phone LIKE ? OR r.brand LIKE ? OR r.model LIKE ? OR r.imei LIKE ?)');
     values.push(like, like, like, like, like, like);
   }
-  return all(`${REPAIR_SELECT} WHERE ${conditions.join(' AND ')} ORDER BY r.id DESC LIMIT 300`, ...values).map(toResponse);
+  return all(`${REPAIR_SELECT} WHERE ${conditions.join(' AND ')} ORDER BY r.id DESC LIMIT 300`, ...values).map(repair => toResponse(repair, user));
 });
 
 route('GET', '/api/repairs/summary', 'user', ({ user }) => {
@@ -133,7 +136,7 @@ route('GET', '/api/repairs/summary', 'user', ({ user }) => {
 
 route('GET', '/api/repairs/:id', 'user', ({ user, params }) => {
   requireAccess(user);
-  return toResponse(findRepair(params.id));
+  return toResponse(findRepair(params.id), user);
 });
 
 route('POST', '/api/repairs', 'user', ({ user, body }) => {
@@ -160,10 +163,12 @@ route('PUT', '/api/repairs/:id', 'user', ({ user, params, body }) => {
   const f = fieldsFromBody(body);
   // Once the deposit is in the register its amount is fixed, so both always agree.
   const deposit = repair.deposit_movement_id ? repair.deposit : f.deposit;
+  // Someone who cannot see the part cost cannot have changed it.
+  const partCost = seesPartCost(user) ? f.part_cost : repair.part_cost;
   run(`UPDATE repairs SET device_type=?, customer_name=?, customer_nif=?, customer_phone=?, brand=?, model=?, imei=?, carrier=?,
        unlock_code=?, pattern=?, faults=?, notes=?, condition=?, amount=?, deposit=?, due_on=?, part_cost=? WHERE id=?`,
     f.device_type, f.customer_name, f.customer_nif, f.customer_phone, f.brand, f.model, f.imei, f.carrier,
-    f.unlock_code, f.pattern, f.faults, f.notes, f.condition, f.amount, deposit, f.due_on, f.part_cost, repair.id);
+    f.unlock_code, f.pattern, f.faults, f.notes, f.condition, f.amount, deposit, f.due_on, partCost, repair.id);
   linkRepair(repair.id);
   return { ok: true };
 });

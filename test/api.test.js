@@ -463,6 +463,22 @@ test('workers are limited by permissions', async () => {
   assert.equal((await worker('POST', '/api/admin/notices', { title: 'x' })).status, 403);
   assert.equal((await worker('GET', '/api/admin/purchases/1/id-document')).status, 403);
 
+  // The part cost shows the margin, and a sale with a ticket is fixed once the customer has the paper.
+  const repair = (await worker('GET', '/api/repairs')).data.find(r => r.model === 'Phone');
+  assert.equal(repair.part_cost, undefined);
+  const sale = (await worker('GET', '/api/categories')).data.find(c => c.kind === 'sale');
+  const ticket = await worker('POST', '/api/invoices', {
+    kind: 'ticket', items: [{ description: 'Worker sale', price: 9 }],
+    register: { lines: [{ category_id: sale.id, profit: 4 }] },
+  });
+  const ticketSale = (await worker('GET', '/api/day')).data.sales.find(m => m.invoice_id === ticket.data.id);
+  assert.equal(ticketSale.can_edit, false);
+  assert.equal((await worker('DELETE', `/api/movements/${ticketSale.id}`)).status, 403);
+
+  // Somebody else's wrong passwords do not lock this user out.
+  for (let i = 0; i < 10; i++) await client()('POST', '/api/login', { username: 'nobody', password: 'x' });
+  assert.equal((await client()('POST', '/api/login', { username: 'worker', password: '1234' })).status, 200);
+
   const users = (await admin('GET', '/api/admin/users')).data;
   await admin('PUT', `/api/admin/users/${users.find(u => u.username === 'worker').id}`, { active: false });
   assert.equal((await worker('GET', '/api/day')).status, 401);
@@ -480,7 +496,7 @@ test('personal expenses leave the cash flow but not the net profit', async () =>
 
 test('statistics, CSV export and import', async () => {
   const stats = (await admin('GET', '/api/admin/stats')).data;
-  assert.equal(stats.totals.sales, 360.4);
+  assert.equal(stats.totals.sales, 369.4);
   assert.equal((await admin('GET', '/api/admin/year')).data.months.length, 12);
   assert.ok((await admin('GET', '/api/admin/movements')).data.length >= 3);
 
@@ -523,6 +539,14 @@ test('starting over removes the records and keeps the set-up', async () => {
 
   const ticket = await admin('POST', '/api/invoices', { kind: 'ticket', items: [{ description: 'After reset', price: 5 }] });
   assert.equal(ticket.data.number, 'T-1');
+});
+
+test('a malformed address is refused without stopping the server', async () => {
+  const status = await new Promise((resolve, reject) => {
+    require('node:http').get({ host: '127.0.0.1', port: PORT, path: '/%E0%A4%A' }, res => { res.resume(); resolve(res.statusCode); }).on('error', reject);
+  });
+  assert.equal(status, 400);
+  assert.equal((await fetch(`${BASE}/api/status`)).status, 200);
 });
 
 test('state-changing requests need the app header', async () => {

@@ -15,7 +15,7 @@ function contractBlocks(purchase, settings, copyLabel) {
     // The shop is the buyer.
     brand: `
       <div class="doc-brand">
-        ${shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : ''}
+        ${shop.logo ? `<img class="shop-logo" src="${esc(shop.logo)}" alt="">` : ''}
         <h2 class="shop-name">${esc(shop.name)}</h2>
         <div class="shop-lines"><b>Comprador</b><br>${lines([shop.legal_name, shop.nif && `NIF: ${shop.nif}`, shop.address1, shop.address2, shop.phone])}</div>
       </div>`,

@@ -32,13 +32,13 @@ route('POST', '/api/setup', 'public', ({ body, res }) => {
 });
 
 route('POST', '/api/login', 'public', ({ body, res, ip }) => {
-  if (auth.tooManyAttempts(ip)) fail(429, 'Demasiados intentos. Espera 15 minutos.');
+  if (auth.tooManyAttempts(ip, body.username)) fail(429, 'Demasiados intentos. Espera 15 minutos.');
   const user = get('SELECT * FROM users WHERE username = ?', str(body.username, 40));
   if (!user || !user.active || !auth.verifyPassword(body.password || '', user.password_hash)) {
-    auth.registerFailure(ip);
+    auth.registerFailure(ip, body.username);
     fail(401, 'Usuario o contraseña incorrectos');
   }
-  auth.clearFailures(ip);
+  auth.clearFailures(ip, body.username);
   startSession(res, user.id);
   return { ok: true };
 });

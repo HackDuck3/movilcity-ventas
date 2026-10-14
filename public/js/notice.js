@@ -59,7 +59,7 @@ export function noticeA4(notice, settings) {
   const blocks = {
     brand: `
       <div class="doc-brand">
-        ${shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : ''}
+        ${shop.logo ? `<img class="shop-logo" src="${esc(shop.logo)}" alt="">` : ''}
         <h2 class="shop-name">${esc(shop.name)}</h2>
         <div class="shop-lines">${shopLines}</div>
       </div>`,

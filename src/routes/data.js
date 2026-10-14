@@ -139,7 +139,7 @@ const RECORD_TABLES = ['purchases', 'devices', 'repairs', 'movements', 'invoices
 const RESET_WORD = 'BORRAR';
 
 function emptyFolder(folder) {
-  for (const name of fs.readdirSync(folder)) fs.rmSync(path.join(folder, name), { force: true });
+  for (const name of fs.readdirSync(folder)) fs.rmSync(path.join(folder, name), { force: true, recursive: true });
 }
 
 route('POST', '/api/admin/reset', 'admin', ({ body }) => {

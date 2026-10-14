@@ -19,6 +19,7 @@ function canEdit(movement, user, permissions) {
   if (movement.deleted_at) return false;
   if (isAdmin(user)) return true;
   if (movement.user_id !== user.id) return false;
+  if (movement.invoice_id) return false; // the customer has the ticket; only the admin may change its sale
   const minutesAllowed = Number(permissions.worker_edit_minutes) || 0;
   if (minutesAllowed <= 0) return false;
   const createdAt = new Date(String(movement.created_at).replace(' ', 'T'));

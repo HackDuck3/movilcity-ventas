@@ -2,6 +2,7 @@
 // SQLite through Node's built-in node:sqlite (Node >= 22.13), so the app has no dependencies.
 const path = require('node:path');
 const fs = require('node:fs');
+const { localDate } = require('./utils');
 const {
   SALE_CATEGORIES, FAVORITE_CATEGORIES, EXPENSE_CATEGORIES, PALETTE, STARTING_NOTICES, defaultWarrantyFor,
 } = require('./defaults');
@@ -20,6 +21,7 @@ const FILES_DIR = path.join(DATA_DIR, 'files');
 const ID_DOCUMENTS_DIR = path.join(DATA_DIR, 'id-documents');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const BACKUPS_TO_KEEP = 30;
+const DAILY_BACKUP = /^ventas-\d{4}-\d{2}-\d{2}\.db$/; // the copies made before a reset are never rotated out
 
 fs.mkdirSync(FILES_DIR, { recursive: true });
 fs.mkdirSync(ID_DOCUMENTS_DIR, { recursive: true });
@@ -378,10 +380,10 @@ function snapshotTo(file) {
 // One snapshot per day, keeping the most recent BACKUPS_TO_KEEP.
 function backup() {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  const file = path.join(BACKUP_DIR, `ventas-${new Date().toISOString().slice(0, 10)}.db`);
+  const file = path.join(BACKUP_DIR, `ventas-${localDate()}.db`);
   if (fs.existsSync(file)) return file;
   snapshotTo(file);
-  const snapshots = fs.readdirSync(BACKUP_DIR).filter(name => name.endsWith('.db')).sort();
+  const snapshots = fs.readdirSync(BACKUP_DIR).filter(name => DAILY_BACKUP.test(name)).sort();
   while (snapshots.length > BACKUPS_TO_KEEP) fs.unlinkSync(path.join(BACKUP_DIR, snapshots.shift()));
   return file;
 }

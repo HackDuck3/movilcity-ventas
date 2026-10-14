@@ -1,6 +1,6 @@
 // Repair receipts: the slip the customer keeps while the shop has their device.
 import {
-  api, state, esc, icon, money, fmtDate, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, redrawOnResize, reloadView, tryApi,
+  api, state, esc, icon, money, fmtDate, toast, isAdmin, can, parseMoney, moneyInput, confirmDialog, modal, debounce, on, redrawOnResize, reloadView, tryApi,
 } from '../core.js';
 import { repairReceipt, repairSheet, DEVICE_TYPES, deviceTypeOf } from '../repair-receipt.js';
 import { printDocument } from '../invoice.js';
@@ -338,9 +338,10 @@ async function renderEditor(root, id, params) {
           <label class="field">Importe (€) <span class="hint">déjalo vacío si aún no hay presupuesto</span>
             <input class="money" name="amount" inputmode="decimal" placeholder="0,00" value="${repair.amount == null ? '' : moneyInput(repair.amount)}">
           </label>
-          <label class="field">Coste de la pieza (€) <span class="hint">para calcular el beneficio; no sale en el resguardo</span>
-            <input class="money" name="part_cost" inputmode="decimal" placeholder="0,00" value="${repair.part_cost == null ? '' : moneyInput(repair.part_cost)}">
-          </label>
+          ${can('worker_see_daily_profit') ? `
+            <label class="field">Coste de la pieza (€) <span class="hint">para calcular el beneficio; no sale en el resguardo</span>
+              <input class="money" name="part_cost" inputmode="decimal" placeholder="0,00" value="${repair.part_cost == null ? '' : moneyInput(repair.part_cost)}">
+            </label>` : ''}
           <label class="field">Entrega prevista <span class="hint">opcional</span>
             <input type="date" name="due_on" value="${esc(repair.due_on || '')}">
           </label>
@@ -408,7 +409,7 @@ async function renderEditor(root, id, params) {
   function readForm() {
     const amount = parseMoney(form.elements.amount.value);
     const deposit = parseMoney(form.elements.deposit.value);
-    const partCost = parseMoney(form.elements.part_cost.value);
+    const partCost = form.elements.part_cost ? parseMoney(form.elements.part_cost.value) : NaN;
     const text = (name) => form.elements[name]?.value ?? '';
     const device = deviceTypeOf(repair);
     const registersDeposit = form.elements.register_deposit?.checked && deposit > 0;

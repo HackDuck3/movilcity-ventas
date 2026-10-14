@@ -126,7 +126,7 @@ function a4Blocks(inv, settings) {
     voidStamp: inv.voided ? '<div class="void-stamp">ANULADA</div>' : '',
     brand: `
       <div class="doc-brand">
-        ${shop.logo ? `<img class="shop-logo" src="${shop.logo}" alt="">` : ''}
+        ${shop.logo ? `<img class="shop-logo" src="${esc(shop.logo)}" alt="">` : ''}
         <h2 class="shop-name">${esc(shop.name)}</h2>
         <div class="shop-lines">${shopLines(shop)}</div>
       </div>`,
@@ -199,7 +199,7 @@ export function ticket80(inv, settings) {
     `<div class="small">${g.items.length ? `<b>${esc(g.items.join(', '))}:</b> ` : ''}${esc(g.text)}</div>`).join('');
 
   return `<div class="${thermalClass(settings)}">
-    ${shop.logo ? `<img class="logo" src="${shop.logo}" alt="">` : ''}
+    ${shop.logo ? `<img class="logo" src="${esc(shop.logo)}" alt="">` : ''}
     <div class="c"><h2>${esc(shop.name)}</h2>${shopLines(shop)}</div>
     <hr>
     <div class="tl"><b>${esc(documentTitle(inv, cfg))} ${esc(inv.number || '')}</b><span>${fmtDate(inv.date)} ${fmtTime(inv.created_at)}</span></div>
