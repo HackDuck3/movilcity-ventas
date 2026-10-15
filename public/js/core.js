@@ -152,6 +152,24 @@ export function applyAppearance(app) {
 // "Today" comes from the server, so a wrong clock on a phone does not matter.
 export const today = () => state.today || isoDate(new Date());
 
+// ---- Payment method
+// When the shop records how each sale is paid, nothing is chosen in advance: a default that nobody changes
+// would put every card payment down as cash.
+export const asksPaymentMethod = () => !!(state.settings.modules.payment_methods && state.settings.sales.ask_payment_method);
+
+export function paymentOptions(selected = '') {
+  return `<option value="">Elige cómo paga…</option>` + state.settings.sales.payment_methods
+    .map(method => `<option ${method === selected ? 'selected' : ''}>${esc(method)}</option>`).join('');
+}
+
+// False (after telling the user) when the payment method is asked for and the select is still empty.
+export function paymentChosen(select) {
+  if (!select || select.value) return true;
+  toast('Elige la forma de pago (efectivo, tarjeta…)', 'err');
+  select.focus();
+  return false;
+}
+
 // ---- DOM
 // Event delegation: calls handler(element, event) when an event inside `root` hits `selector`.
 export function on(root, type, selector, handler) {

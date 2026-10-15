@@ -3,7 +3,7 @@
 const { all, get, run, once } = require('../db');
 const { getSetting } = require('../settings');
 const { route, fail } = require('../http');
-const { euros, str } = require('../utils');
+const { euros, str, upper } = require('../utils');
 const { compact, COMPACT_SQL, findMatch, linkInvoice, linkRepair } = require('../customers');
 const { oldestDateVisibleTo } = require('./invoices');
 
@@ -15,11 +15,19 @@ function requireAccess() {
 
 function fieldsFromBody(body) {
   return {
-    name: str(body.name, 120), nif: str(body.nif, 30), phone: str(body.phone, 30),
-    address: str(body.address, 200), postcode: str(body.postcode, 12),
-    city: str(body.city, 80), province: str(body.province, 80),
+    name: upper(body.name, 120), nif: upper(body.nif, 30), phone: str(body.phone, 30),
+    address: upper(body.address, 200), postcode: upper(body.postcode, 12),
+    city: upper(body.city, 80), province: upper(body.province, 80),
   };
 }
+
+// Customers saved before details were kept in capitals. Issued documents keep the text they were printed with.
+once('customers_in_capitals', () => {
+  for (const customer of all('SELECT * FROM customers')) {
+    run('UPDATE customers SET name = ?, nif = ?, address = ?, postcode = ?, city = ?, province = ? WHERE id = ?',
+      ...['name', 'nif', 'address', 'postcode', 'city', 'province'].map(field => customer[field].toLocaleUpperCase('es-ES')), customer.id);
+  }
+});
 
 // Documents made before customers existed.
 once('customers_from_documents', () => {

@@ -79,6 +79,8 @@ route('GET', '/api/day', 'user', ({ user, query }) => {
   };
 });
 
+const paymentMethodRequired = () => !!(getSetting('modules').payment_methods && getSetting('sales').ask_payment_method);
+
 // Returns the clean values to store (amounts in cents). `existing` is set when editing.
 function validateMovement(body, user, existing) {
   const permissions = getSetting('permissions');
@@ -110,7 +112,12 @@ function validateMovement(body, user, existing) {
   if (isAdmin(user) && isDate(body.date)) date = body.date;
   else if (existing) date = existing.date;
 
-  return { type, category_id: category.id, amount, profit, description, date, payment_method: str(body.payment_method, 40) };
+  const paymentMethod = str(body.payment_method, 40);
+  // Entries that never had one (imported from a spreadsheet) may stay without it when corrected.
+  const hadNoMethod = existing && !existing.payment_method;
+  if (paymentMethodRequired() && !paymentMethod && !hadNoMethod) fail(400, 'Elige la forma de pago (efectivo, tarjeta…)');
+
+  return { type, category_id: category.id, amount, profit, description, date, payment_method: paymentMethod };
 }
 
 function findEditable(id, user, deniedMessage) {
@@ -186,4 +193,4 @@ function recordMovement(type, fields, user) {
 const recordSale = (sale, user) => recordMovement('sale', sale, user);
 const recordExpense = (expense, user) => recordMovement('expense', expense, user);
 
-module.exports = { MOVEMENT_SELECT, validateMovement, recordSale, recordExpense };
+module.exports = { MOVEMENT_SELECT, validateMovement, recordSale, recordExpense, paymentMethodRequired };

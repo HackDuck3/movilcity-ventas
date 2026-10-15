@@ -1,6 +1,6 @@
 // Repair receipts: the slip the customer keeps while the shop has their device.
 import {
-  api, state, esc, icon, money, fmtDate, toast, isAdmin, can, parseMoney, moneyInput, confirmDialog, modal, debounce, on, redrawOnResize, reloadView, tryApi,
+  api, state, esc, icon, money, fmtDate, toast, isAdmin, can, parseMoney, asksPaymentMethod, paymentOptions, paymentChosen, moneyInput, confirmDialog, modal, debounce, on, redrawOnResize, reloadView, tryApi,
 } from '../core.js';
 import { repairReceipt, repairSheet, DEVICE_TYPES, deviceTypeOf } from '../repair-receipt.js';
 import { printDocument } from '../invoice.js';
@@ -215,10 +215,10 @@ async function renderDetail(root, id) {
 
 // Asks how the repair is paid so the sale goes into the cash register in the same step.
 function openCollectDialog(repair, setStatus) {
-  const { sales, modules } = state.settings;
+  const { modules } = state.settings;
   const saleCategories = state.categories.filter(category => category.kind === 'sale' && category.active);
   const repairCategory = saleCategories.find(category => category.name.toLowerCase().startsWith('reparaci'));
-  const asksPaymentMethod = modules.payment_methods && sales.ask_payment_method;
+  const asksPayment = asksPaymentMethod();
   const deposit = repair.deposit || 0;
   const knowsPartCost = repair.part_cost != null;
   // With the cost of the part on file the profit is worked out: everything charged minus the part.
@@ -244,9 +244,9 @@ function openCollectDialog(repair, setStatus) {
             ${saleCategories.map(category => `<option value="${category.id}" ${category === repairCategory ? 'selected' : ''}>${esc(category.name)}</option>`).join('')}
           </select>
         </label>
-        ${asksPaymentMethod ? `
+        ${asksPayment ? `
           <label class="field">Forma de pago
-            <select name="payment">${sales.payment_methods.map(method => `<option>${esc(method)}</option>`).join('')}</select>
+            <select name="payment">${paymentOptions()}</select>
           </label>` : ''}
       </form>`,
     foot: `<button class="btn" data-close>Cancelar</button><button class="btn btn-primary" data-ok>${icon('check')} Marcar como recogida</button>`,
@@ -267,6 +267,7 @@ function openCollectDialog(repair, setStatus) {
         const profit = parseMoney(fields.profit.value);
         if (!Number.isFinite(amount) || amount < 0 || (amount === 0 && !deposit)) return toast('Indica el importe cobrado', 'err');
         if (!Number.isFinite(profit)) return toast('Indica el beneficio (o desmarca "Cobrar ahora")', 'err');
+        if (!paymentChosen(fields.payment)) return;
         const register = {
           amount, profit,
           category_id: Number(fields.category.value),
@@ -296,7 +297,7 @@ async function renderEditor(root, id, params) {
   };
   // A deposit already in the cash register cannot be changed from here.
   const depositIsRegistered = !!repair.deposit_movement_id;
-  const { sales, modules } = state.settings;
+  const { modules } = state.settings;
   const repairCategory = state.categories.find(category => category.kind === 'sale' && category.active && category.name.toLowerCase().startsWith('reparaci'));
   let pattern = repair.pattern ? repair.pattern.split('-').map(Number) : [];
 
@@ -352,8 +353,7 @@ async function renderEditor(root, id, params) {
           ${existing || !repairCategory ? '' : `
             <div class="field hidden" data-deposit-options>
               <label class="check"><input type="checkbox" name="register_deposit" checked><span><b>Apuntar la señal en la caja de hoy</b></span></label>
-              ${modules.payment_methods && sales.ask_payment_method ? `
-                <select name="deposit_payment">${sales.payment_methods.map(method => `<option>${esc(method)}</option>`).join('')}</select>` : ''}
+              ${asksPaymentMethod() ? `<select name="deposit_payment">${paymentOptions()}</select>` : ''}
             </div>`}
         </div>
       </div>

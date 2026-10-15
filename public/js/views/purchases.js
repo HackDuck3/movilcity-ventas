@@ -1,6 +1,6 @@
 // Used phones bought from private sellers: contract, optional stock entry and expense, and the photo of the seller's ID.
 import {
-  api, state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, confirmDialog, debounce, on, redrawOnResize, reloadView, tryApi,
+  api, state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, confirmDialog, debounce, on, redrawOnResize, reloadView, tryApi, paymentOptions, paymentChosen,
 } from '../core.js';
 import { purchaseContract } from '../purchase-contract.js';
 import { printDocument } from '../invoice.js';
@@ -162,7 +162,7 @@ async function renderDetail(root, id) {
 
 // ---- New purchase
 function renderEditor(root) {
-  const { sales, modules } = state.settings;
+  const { modules } = state.settings;
   const config = state.settings.purchases;
   const expenseCategories = state.categories.filter(category => category.kind === 'expense' && category.active);
   const phonePurchases = expenseCategories.find(category => category.name.toLowerCase().startsWith('compra de m'));
@@ -203,7 +203,7 @@ function renderEditor(root) {
         <div class="settings-grid">
           <label class="field">Precio pagado (€)<input class="money" name="price" inputmode="decimal" placeholder="0,00"></label>
           <label class="field">Forma de pago
-            <select name="payment_method">${sales.payment_methods.map(method => `<option>${esc(method)}</option>`).join('')}</select>
+            <select name="payment_method">${paymentOptions()}</select>
           </label>
           ${modules.stock ? `
             <label class="check wide"><input type="checkbox" name="add_to_stock" checked>
@@ -228,6 +228,7 @@ function renderEditor(root) {
 
   async function save({ print }) {
     const fields = form.elements;
+    if (!paymentChosen(fields.payment_method)) return;
     const price = parseMoney(fields.price.value);
     const body = {
       seller_name: fields.seller_name.value, seller_nif: fields.seller_nif.value,

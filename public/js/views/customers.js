@@ -106,7 +106,7 @@ async function renderDetail(root, id) {
       ${id && modules.repairs && can('worker_create_repairs') ? `<a class="btn" href="#/reparaciones/nueva?cliente=${id}">${icon('wrench')} Nueva reparación</a>` : ''}
       ${id && isAdmin() ? '<button class="btn btn-danger" data-delete>Borrar</button>' : ''}
     </div>
-    <form class="card card-pad" data-form autocomplete="off" style="margin-bottom:14px">
+    <form class="card card-pad" data-form data-customer-form autocomplete="off" style="margin-bottom:14px">
       <div class="settings-grid">
         ${FIELDS.map(field).join('')}
         <label class="field wide">Notas <span class="hint">solo las ve la tienda</span>

@@ -20,6 +20,8 @@ function addDays(isoDate, days) {
 }
 
 const str = (value, maxLength = 500) => String(value ?? '').trim().slice(0, maxLength);
+// Customer details are kept in capitals, the way the shop writes them on paper.
+const upper = (value, maxLength) => str(value, maxLength).toLocaleUpperCase('es-ES');
 const isColor = (s) => typeof s === 'string' && /^#[0-9a-fA-F]{6}$/.test(s);
 
 // Reads ?from=&to= and defaults to the current month so far.
@@ -31,4 +33,4 @@ function dateRange(query) {
   return { from, to };
 }
 
-module.exports = { cents, euros, pad, localDate, addDays, isDate, str, isColor, dateRange };
+module.exports = { cents, euros, pad, localDate, addDays, isDate, str, upper, isColor, dateRange };

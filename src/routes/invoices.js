@@ -3,8 +3,8 @@
 const { all, get, run, tx } = require('../db');
 const { getSetting, setSetting } = require('../settings');
 const { route, fail } = require('../http');
-const { cents, euros, localDate, addDays, isDate, str } = require('../utils');
-const { validateMovement } = require('./movements');
+const { cents, euros, localDate, addDays, isDate, str, upper } = require('../utils');
+const { validateMovement, paymentMethodRequired } = require('./movements');
 const { linkInvoice } = require('../customers');
 
 const isAdmin = (user) => user.role === 'admin';
@@ -176,9 +176,9 @@ route('POST', '/api/invoices', 'user', ({ user, body }) => {
   const kind = body.kind === 'ticket' ? 'ticket' : 'factura';
   const date = isAdmin(user) && isDate(body.date) ? body.date : localDate();
   const customer = {
-    name: str(body.customer_name, 120), nif: str(body.customer_nif, 30),
-    address: str(body.customer_address, 200), postcode: str(body.customer_postcode, 12),
-    city: str(body.customer_city, 80), province: str(body.customer_province, 80),
+    name: upper(body.customer_name, 120), nif: upper(body.customer_nif, 30),
+    address: upper(body.customer_address, 200), postcode: upper(body.customer_postcode, 12),
+    city: upper(body.customer_city, 80), province: upper(body.customer_province, 80),
     phone: str(body.customer_phone, 30),
   };
   if (kind === 'factura' && (!customer.name || !customer.nif || !customer.address)) {
@@ -268,6 +268,7 @@ route('POST', '/api/invoices/:id/refund', 'user', ({ user, params, body }) => {
 // Takes the money out of the register as negative sales, one per returned line and under that line's
 // product, so the day's totals, the profit and the charts go down where they went up.
 function registerRefund(refundId, number, original, refund, register, user) {
+  if (paymentMethodRequired() && !str(register.payment_method, 40)) fail(400, 'Elige cómo se devuelve el dinero (efectivo, tarjeta…)');
   const sales = salesOf(original);
   const amounts = shareOut(refund.refunded, refund.items.map(item => -item.qty * item.price));
   const typedProfit = cents(register.profit);

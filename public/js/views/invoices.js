@@ -1,7 +1,7 @@
 // Tickets (simplified invoices) and full invoices: two sections, each with its own number series.
 import {
   api, state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, moneyInput,
-  confirmDialog, modal, can, debounce, on, redrawOnResize, reloadView, tryApi,
+  confirmDialog, modal, can, debounce, on, redrawOnResize, reloadView, tryApi, asksPaymentMethod, paymentOptions, paymentChosen,
 } from '../core.js';
 import { attachCustomerPicker } from '../customer-picker.js';
 import { invoiceA4, ticket80, printDocument } from '../invoice.js';
@@ -26,6 +26,7 @@ function documentsView(root, params, sub, kind) {
 }
 
 const invoiceConfig = () => state.settings.invoice;
+const capitals = (text) => text.toLocaleUpperCase('es-ES'); // the server stores customer details this way
 const fileNameFor = (invoice) => `${KINDS[invoice.kind].singular}-${invoice.number}`;
 const documentHtml = (invoice, format) => (format === 'ticket' ? ticket80(invoice, state.settings) : invoiceA4(invoice, state.settings));
 
@@ -200,13 +201,13 @@ async function renderDetail(root, id) {
 
 // Picks what comes back and how the money is returned, then opens the refund document to print it.
 async function openRefundDialog(invoice) {
-  const { sales, modules } = state.settings;
+  const { modules } = state.settings;
   const recorded = (await tryApi(`/invoices/${invoice.id}/sale`)) || { whole: null, lines: {} };
   // The sale each line belongs to: its own when the document was recorded line by line, else the single one.
   const saleOfLine = (index) => recorded.lines[index] || recorded.whole;
   const anySale = recorded.whole || Object.values(recorded.lines)[0] || {};
   const saleCategories = state.categories.filter(category => category.kind === 'sale' && category.active);
-  const asksPaymentMethod = modules.payment_methods && sales.ask_payment_method;
+  const asksPayment = asksPaymentMethod();
   const seesProfit = can('worker_see_daily_profit');
   // The discount of the original comes back in the same proportion.
   const paidShare = invoice.subtotal ? invoice.total / invoice.subtotal : 1;
@@ -255,9 +256,9 @@ async function openRefundDialog(invoice) {
               ${saleCategories.map(category => `<option value="${category.id}" ${category.id === anySale.category_id ? 'selected' : ''}>${esc(category.name)}</option>`).join('')}
             </select>
           </label>` : ''}
-        ${asksPaymentMethod ? `
+        ${asksPayment ? `
           <label class="field" data-register-field>Se devuelve por
-            <select name="payment">${sales.payment_methods.map(method => `<option ${method === anySale.payment_method ? 'selected' : ''}>${esc(method)}</option>`).join('')}</select>
+            <select name="payment">${paymentOptions(anySale.payment_method)}</select>
           </label>` : ''}
         ${seesProfit ? `
           <label class="field" data-register-field>Beneficio que se pierde (€) <span class="hint">${knowsProfit ? 'calculado con la venta original' : 'no hay venta enlazada: escríbelo'}</span>
@@ -293,6 +294,7 @@ async function openRefundDialog(invoice) {
 
       dialog.querySelector('[data-ok]').onclick = async () => {
         if (!(refundTotal() > 0)) return toast('Marca lo que se devuelve', 'err');
+        if (fields.register.checked && !paymentChosen(fields.payment)) return;
         const profit = fields.profit ? parseMoney(fields.profit.value) : NaN;
         const body = {
           items: selected().map(({ line, qty }) => ({ line, qty })),
@@ -378,7 +380,7 @@ async function renderEditor(root, params, kind) {
   const number = nextNumber(kind);
   const saleId = Number(params.get('venta')) || null;
   const saleCategories = state.categories.filter(category => category.kind === 'sale' && category.active);
-  const asksPaymentMethod = state.settings.modules.payment_methods;
+  const asksPayment = asksPaymentMethod();
 
   const draft = await initialDraft(params, kind);
   const { sourceTicket } = draft;
@@ -427,11 +429,9 @@ async function renderEditor(root, params, kind) {
       </label>
       <div class="muted" style="margin:6px 0 0 28px" data-register-fields>
         Cada línea se apunta como una venta, con el producto y el beneficio que indiques en ella.
-        ${asksPaymentMethod ? `
+        ${asksPayment ? `
           <label class="field" style="margin-top:10px;max-width:260px">Forma de pago
-            <select name="register_payment">
-              ${state.settings.sales.payment_methods.map(method => `<option>${esc(method)}</option>`).join('')}
-            </select>
+            <select name="register_payment">${paymentOptions()}</select>
           </label>` : ''}
       </div>
     </div>`;
@@ -562,12 +562,12 @@ async function renderEditor(root, params, kind) {
       kind, number, items, subtotal, discount,
       total: Math.max(0, subtotal - discount),
       date: form.elements.date ? form.elements.date.value : today(),
-      customer_name: form.elements.customer_name.value,
-      customer_nif: form.elements.customer_nif.value,
-      customer_address: form.elements.customer_address.value,
-      customer_postcode: form.elements.customer_postcode.value,
-      customer_city: form.elements.customer_city.value,
-      customer_province: form.elements.customer_province.value,
+      customer_name: capitals(form.elements.customer_name.value),
+      customer_nif: capitals(form.elements.customer_nif.value),
+      customer_address: capitals(form.elements.customer_address.value),
+      customer_postcode: capitals(form.elements.customer_postcode.value),
+      customer_city: capitals(form.elements.customer_city.value),
+      customer_province: capitals(form.elements.customer_province.value),
       customer_phone: form.elements.customer_phone.value,
       notes: form.elements.notes.value,
       show_vat: form.elements.show_vat.checked,
@@ -621,6 +621,7 @@ async function renderEditor(root, params, kind) {
     if (sourceTicket) return { replaces_id: sourceTicket.id };
     if (saleId) return { movement_id: saleId };
     if (!form.elements.register.checked) return {};
+    if (!paymentChosen(form.elements.register_payment)) return null;
     // One entry per line that will be saved, in the same order as the items sent.
     const lines = [];
     for (const [index, item] of draft.items.entries()) {

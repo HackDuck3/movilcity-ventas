@@ -149,6 +149,10 @@ a { color: var(--primary); }
 
 label.field, div.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
 label.field { position: relative; }
+input[name="customer_name"], input[name="customer_nif"], input[name="customer_address"], input[name="customer_postcode"],
+input[name="customer_city"], input[name="customer_province"], [data-customer-form] input:not([name="notes"]),
+input[name="seller_name"], input[name="seller_nif"], input[name="seller_address"] { text-transform: uppercase; }
+input[name^="customer_"]::placeholder, input[name^="seller_"]::placeholder, [data-customer-form] input::placeholder { text-transform: none; }
 .suggest {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin-top: 4px; background: var(--surface);
   border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden;

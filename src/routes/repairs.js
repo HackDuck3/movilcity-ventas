@@ -3,7 +3,7 @@
 const { all, get, run, tx } = require('../db');
 const { getSetting, setSetting } = require('../settings');
 const { route, fail } = require('../http');
-const { cents, euros, localDate, addDays, isDate, str } = require('../utils');
+const { cents, euros, localDate, addDays, isDate, str, upper } = require('../utils');
 const { recordSale } = require('./movements');
 const { linkRepair } = require('../customers');
 
@@ -55,8 +55,8 @@ function findRepair(id) {
 function fieldsFromBody(body) {
   const fields = {
     device_type: body.device_type === 'laptop' ? 'laptop' : 'phone',
-    customer_name: str(body.customer_name, 120),
-    customer_nif: str(body.customer_nif, 30),
+    customer_name: upper(body.customer_name, 120),
+    customer_nif: upper(body.customer_nif, 30),
     customer_phone: str(body.customer_phone, 30),
     brand: str(body.brand, 60),
     model: str(body.model, 80),

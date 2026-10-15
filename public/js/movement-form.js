@@ -1,5 +1,5 @@
 // Sale / expense form, used in the cash register and when editing from Movements.
-import { api, state, esc, icon, toast, parseMoney, moneyInput, money, can, isAdmin, today, on } from './core.js';
+import { api, state, esc, icon, toast, parseMoney, moneyInput, money, can, isAdmin, today, on, asksPaymentMethod as paymentAsked } from './core.js';
 
 const MAX_SUGGESTIONS = 8;
 
@@ -33,7 +33,7 @@ export function mountMovementForm(container, options) {
   const isEditing = !!movement;
   const text = TEXT[type];
   const salesConfig = state.settings.sales;
-  const asksPaymentMethod = state.settings.modules.payment_methods && salesConfig.ask_payment_method;
+  const asksPaymentMethod = paymentAsked();
   // 'both' shows cost and profit (each fills in the other), 'profit' or 'cost' shows only that one.
   const profitInput = salesConfig.profit_input || 'both';
   const showCost = isSale && profitInput !== 'profit';
@@ -43,7 +43,7 @@ export function mountMovementForm(container, options) {
     category.kind === type && (category.active || (isEditing && category.id === movement.category_id)));
 
   let selectedCategoryId = isEditing ? movement.category_id : null;
-  let paymentMethod = isEditing ? movement.payment_method : salesConfig.payment_methods[0] || '';
+  let paymentMethod = isEditing ? movement.payment_method : ''; // chosen every time, never assumed
   let lastEditedField = 'profit';
   let showsAll = false;
 
@@ -198,6 +198,11 @@ export function mountMovementForm(container, options) {
       field('amount').focus();
       return null;
     }
+    if (asksPaymentMethod && !paymentMethod && !(isEditing && !movement.payment_method)) {
+      toast('Elige la forma de pago (efectivo, tarjeta…)', 'err');
+      container.querySelector('[data-payment-methods]').scrollIntoView({ block: 'center' });
+      return null;
+    }
     const body = {
       type, amount,
       category_id: selectedCategoryId,
@@ -220,6 +225,8 @@ export function mountMovementForm(container, options) {
   function resetForNextEntry() {
     selectedCategoryId = null;
     showsAll = false;
+    paymentMethod = ''; // the next customer may pay differently
+    container.querySelectorAll('[data-method]').forEach(button => button.classList.remove('on'));
     form.reset();
     search.value = '';
     renderCategories();

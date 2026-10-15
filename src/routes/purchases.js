@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const { all, get, run, tx, ID_DOCUMENTS_DIR } = require('../db');
 const { getSetting, setSetting } = require('../settings');
 const { route, fail, HttpError } = require('../http');
-const { cents, euros, localDate, isDate, str, dateRange } = require('../utils');
+const { cents, euros, localDate, isDate, str, upper, dateRange } = require('../utils');
 const { recordExpense } = require('./movements');
 
 const PURCHASE_SELECT = 'SELECT p.*, u.name AS user_name FROM purchases p LEFT JOIN users u ON u.id = p.user_id';
@@ -33,9 +33,9 @@ function findPurchase(id) {
 
 function fieldsFromBody(body) {
   const fields = {
-    seller_name: str(body.seller_name, 120),
-    seller_nif: str(body.seller_nif, 30),
-    seller_address: str(body.seller_address, 200),
+    seller_name: upper(body.seller_name, 120),
+    seller_nif: upper(body.seller_nif, 30),
+    seller_address: upper(body.seller_address, 200),
     seller_phone: str(body.seller_phone, 30),
     brand: str(body.brand, 60),
     model: str(body.model, 80),

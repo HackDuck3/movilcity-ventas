@@ -102,13 +102,15 @@ test('sales and expenses add up in the daily register', async () => {
   const expense = categories.find(c => c.kind === 'expense');
   const created = await admin('POST', '/api/movements', { type: 'sale', category_id: sale.id, amount: '20,50', profit: 8, payment_method: 'Efectivo' });
   assert.equal(created.status, 200);
-  await admin('POST', '/api/movements', { type: 'expense', category_id: expense.id, amount: 5 });
+  // The payment method is never assumed: without it the entry is refused.
+  assert.equal((await admin('POST', '/api/movements', { type: 'expense', category_id: expense.id, amount: 5 })).status, 400);
+  await admin('POST', '/api/movements', { type: 'expense', category_id: expense.id, amount: 5, payment_method: 'Efectivo' });
   assert.equal((await admin('POST', '/api/movements', { type: 'sale', category_id: sale.id, amount: 10, profit: 11 })).status, 400);
 
   const day = (await admin('GET', '/api/day')).data;
   assert.deepEqual([day.totals.sales, day.totals.profit, day.totals.expenses, day.totals.balance], [20.5, 8, 5, 15.5]);
 
-  await admin('PUT', `/api/movements/${created.data.id}`, { category_id: sale.id, amount: 30, profit: 10 });
+  await admin('PUT', `/api/movements/${created.data.id}`, { category_id: sale.id, amount: 30, profit: 10, payment_method: 'Efectivo' });
   assert.equal((await admin('GET', '/api/day')).data.totals.sales, 30);
 
   await admin('DELETE', `/api/movements/${created.data.id}`);
@@ -139,7 +141,7 @@ test('tickets and invoices use separate numbering, warranties and the VAT switch
   assert.equal(invoice.data.number, '1');
   const full = (await admin('GET', `/api/invoices/${invoice.data.id}`)).data;
   assert.deepEqual([full.show_vat, full.replaces_number], [true, 'T-1']);
-  assert.deepEqual([full.customer_postcode, full.customer_city, full.customer_province], ['28001', 'Madrid', 'Madrid']);
+  assert.deepEqual([full.customer_postcode, full.customer_city, full.customer_province], ['28001', 'MADRID', 'MADRID']); // customer details are stored in capitals
 
   assert.equal((await admin('GET', '/api/invoices?kind=ticket')).data.length, 1);
   await admin('POST', `/api/invoices/${invoice.data.id}/void`);
@@ -280,6 +282,8 @@ test('buying a used phone adds it to stock, records the expense and keeps the id
   const before = (await admin('GET', '/api/day')).data.totals.expenses;
   const purchase = await admin('POST', '/api/purchases', { ...seller, brand: 'Brand', add_to_stock: true, expense_category_id: expense.id, payment_method: 'Efectivo' });
   assert.equal(purchase.data.number, 'C-1');
+  const stored = (await admin('GET', `/api/purchases/${purchase.data.id}`)).data;
+  assert.deepEqual([stored.seller_name, stored.seller_address], ['SELLER NAME', 'STREET 1']);
   assert.equal((await admin('GET', '/api/day')).data.totals.expenses - before, 80);
   const inStock = (await admin('GET', '/api/stock?q=358000000000001')).data[0];
   assert.deepEqual([inStock.condition, inStock.cost], ['used', 80]);
@@ -293,7 +297,7 @@ test('buying a used phone adds it to stock, records the expense and keeps the id
   assert.equal((await admin('GET', `/api/admin/purchases/${purchase.data.id}/id-document`)).data.toString(), 'fake-jpeg-bytes');
 
   const register = (await admin('GET', '/api/admin/purchases-register.csv')).data.toString('utf8');
-  assert.match(register, /C-1;.*Seller Name;00000000T;Street 1/);
+  assert.match(register, /C-1;.*SELLER NAME;00000000T;STREET 1/);
   assert.equal((await admin('GET', '/api/search?q=Seller')).data.purchases.length, 1);
 });
 
@@ -327,7 +331,8 @@ test('customers are remembered from repairs and invoices, and completed over tim
   const repair = await admin('POST', '/api/repairs', {
     model: 'Phone', customer_name: 'Ana Test', customer_phone: '699 111 222', notes: 'Screen', amount: 80, part_cost: 30,
   });
-  assert.equal((await admin('GET', `/api/repairs/${repair.data.id}`)).data.part_cost, 30);
+  const savedRepair = (await admin('GET', `/api/repairs/${repair.data.id}`)).data;
+  assert.deepEqual([savedRepair.part_cost, savedRepair.customer_name], [30, 'ANA TEST']);
   await admin('POST', '/api/invoices', {
     kind: 'factura', customer_name: 'Ana Test', customer_nif: 'Z9', customer_phone: '699111222',
     customer_address: 'Street 2', customer_city: 'Getafe', items: [{ description: 'Funda', price: 9 }],
@@ -335,7 +340,7 @@ test('customers are remembered from repairs and invoices, and completed over tim
 
   const found = (await admin('GET', '/api/customers?q=699111')).data;
   assert.equal(found.length, 1);
-  assert.deepEqual([found[0].nif, found[0].city], ['Z9', 'Getafe']);
+  assert.deepEqual([found[0].nif, found[0].city, found[0].name], ['Z9', 'GETAFE', 'ANA TEST']);
   const customer = (await admin('GET', `/api/customers/${found[0].id}`)).data;
   assert.deepEqual([customer.invoices.length, customer.repairs.length], [1, 1]);
 
@@ -469,7 +474,7 @@ test('workers are limited by permissions', async () => {
   const sale = (await worker('GET', '/api/categories')).data.find(c => c.kind === 'sale');
   const ticket = await worker('POST', '/api/invoices', {
     kind: 'ticket', items: [{ description: 'Worker sale', price: 9 }],
-    register: { lines: [{ category_id: sale.id, profit: 4 }] },
+    register: { lines: [{ category_id: sale.id, profit: 4 }], payment_method: 'Efectivo' },
   });
   const ticketSale = (await worker('GET', '/api/day')).data.sales.find(m => m.invoice_id === ticket.data.id);
   assert.equal(ticketSale.can_edit, false);
@@ -487,7 +492,7 @@ test('workers are limited by permissions', async () => {
 test('personal expenses leave the cash flow but not the net profit', async () => {
   const before = (await admin('GET', '/api/admin/stats')).data.totals;
   const reason = await admin('POST', '/api/admin/categories', { kind: 'expense', name: 'Home', expense_type: 'personal' });
-  await admin('POST', '/api/movements', { type: 'expense', category_id: reason.data.id, amount: 40 });
+  await admin('POST', '/api/movements', { type: 'expense', category_id: reason.data.id, amount: 40, payment_method: 'Efectivo' });
   const after = (await admin('GET', '/api/admin/stats')).data.totals;
   assert.deepEqual([after.expenses_personal, after.net, after.expenses_operating], [40, before.net, before.expenses_operating]);
   assert.equal(Math.round((before.cash - after.cash) * 100), 4000);

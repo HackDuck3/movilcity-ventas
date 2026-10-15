@@ -1,6 +1,6 @@
 // Phone stock: add each phone with its cost, sell it with one click and let the app work out the profit.
 import {
-  state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, tryApi,
+  state, esc, icon, money, fmtDate, today, toast, isAdmin, parseMoney, moneyInput, confirmDialog, modal, debounce, on, tryApi, asksPaymentMethod, paymentOptions, paymentChosen,
 } from '../core.js';
 import { parseDeliveryNote } from '../delivery-note.js';
 
@@ -233,10 +233,10 @@ export async function stockView(root) {
   }
 
   function openSellDialog(device) {
-    const { sales, modules } = state.settings;
+    const { modules } = state.settings;
     const saleCategories = state.categories.filter(category => category.kind === 'sale' && category.active);
     const phoneCategory = saleCategories.find(category => category.name.toLowerCase().startsWith('movil'));
-    const asksPaymentMethod = modules.payment_methods && sales.ask_payment_method;
+    const asksPayment = asksPaymentMethod();
     const canMakeTicket = modules.invoices;
     const showsProfit = device.cost !== undefined;
 
@@ -253,9 +253,9 @@ export async function stockView(root) {
               ${saleCategories.map(category => `<option value="${category.id}" ${category === phoneCategory ? 'selected' : ''}>${esc(category.name)}</option>`).join('')}
             </select>
           </label>
-          ${asksPaymentMethod ? `
+          ${asksPayment ? `
             <label class="field">Forma de pago
-              <select name="payment">${sales.payment_methods.map(method => `<option>${esc(method)}</option>`).join('')}</select>
+              <select name="payment">${paymentOptions()}</select>
             </label>` : ''}
         </form>`,
       foot: `
@@ -276,6 +276,7 @@ export async function stockView(root) {
         async function sell({ makeTicket }) {
           const price = parseMoney(fields.price.value);
           if (!Number.isFinite(price) || price <= 0) return toast('Indica el precio de venta', 'err');
+          if (!paymentChosen(fields.payment)) return;
           const sold = await tryApi(`/stock/${device.id}/sell`, {
             method: 'POST',
             body: { price, category_id: Number(fields.category.value), payment_method: fields.payment ? fields.payment.value : '' },
