@@ -27,7 +27,9 @@ fs.mkdirSync(FILES_DIR, { recursive: true });
 fs.mkdirSync(ID_DOCUMENTS_DIR, { recursive: true });
 
 const db = new Database(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
+// With WAL, synchronous = NORMAL never corrupts the database and does far fewer disk syncs, which matters
+// on the SD card or small SSD of a home server. A power cut can lose at most the last instant of writes.
+db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;');
 
 // All money columns are integers in cents. Dates are 'YYYY-MM-DD' strings in local time.
 db.exec(`
@@ -287,6 +289,14 @@ function migrate() {
   for (const [column, type] of [['ready_at', 'TEXT'], ['due_on', 'TEXT'], ['deposit', 'INTEGER'], ['deposit_movement_id', 'INTEGER'], ['part_cost', 'INTEGER'], ['customer_id', 'INTEGER']]) {
     if (!hasColumn('repairs', column)) db.exec(`ALTER TABLE repairs ADD COLUMN ${column} ${type}`);
   }
+  // Created here, after the columns above exist in older databases.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_mov_invoice ON movements(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_replaces ON invoices(replaces_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_rectifies ON invoices(rectifies_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_customer ON invoices(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_rep_customer ON repairs(customer_id);
+  `);
   if (!hasColumn('categories', 'warranty')) {
     db.exec("ALTER TABLE categories ADD COLUMN warranty TEXT NOT NULL DEFAULT ''");
     tx(() => all("SELECT id, name FROM categories WHERE kind = 'sale'").forEach(category =>
