@@ -5,6 +5,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const zlib = require('node:zlib');
+const crypto = require('node:crypto');
 
 const { backup } = require('./src/db');
 const { routes, HttpError } = require('./src/api');
@@ -51,8 +53,35 @@ function readJsonBody(req) {
   });
 }
 
+// Files from public/ are kept in memory with their gzip and brotli versions, so each one is read and
+// compressed once instead of on every request. The ETag lets browsers revalidate with a 304 instead of
+// downloading the file again. An entry is rebuilt when the file on disk changes.
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json', '.webmanifest']);
+const staticCache = new Map();
+
+function loadStatic(file) {
+  let stat;
+  try { stat = fs.statSync(file); } catch { return null; }
+  if (stat.isDirectory()) return null;
+  const cached = staticCache.get(file);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) return cached;
+  const body = fs.readFileSync(file);
+  const extension = path.extname(file);
+  const entry = {
+    mtimeMs: stat.mtimeMs, size: stat.size, body,
+    type: MIME_TYPES[extension] || 'application/octet-stream',
+    etag: `"${crypto.createHash('sha1').update(body).digest('base64url')}"`,
+  };
+  if (COMPRESSIBLE.has(extension)) {
+    entry.br = zlib.brotliCompressSync(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } });
+    entry.gzip = zlib.gzipSync(body, { level: 9 });
+  }
+  staticCache.set(file, entry);
+  return entry;
+}
+
 // Unknown paths fall back to index.html: the web app does its own routing.
-function serveStatic(res, pathname) {
+function serveStatic(req, res, pathname) {
   let decoded;
   try {
     decoded = decodeURIComponent(pathname);
@@ -60,18 +89,30 @@ function serveStatic(res, pathname) {
     res.writeHead(400);
     return res.end(); // a malformed %-sequence, usually a bot probing the server
   }
-  let file = path.normalize(path.join(PUBLIC_DIR, decoded));
+  const file = path.normalize(path.join(PUBLIC_DIR, decoded));
   if (!file.startsWith(PUBLIC_DIR)) {
     res.writeHead(403);
     return res.end();
   }
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(PUBLIC_DIR, 'index.html');
-  res.writeHead(200, {
-    'Content-Type': MIME_TYPES[path.extname(file)] || 'application/octet-stream',
+  const entry = loadStatic(file) || loadStatic(path.join(PUBLIC_DIR, 'index.html'));
+  const headers = {
+    'Content-Type': entry.type,
     'Cache-Control': 'no-cache',
+    'ETag': entry.etag,
+    'Vary': 'Accept-Encoding',
     'X-Content-Type-Options': 'nosniff',
-  });
-  streamFile(file, res);
+  };
+  if (req.headers['if-none-match'] === entry.etag) {
+    res.writeHead(304, headers);
+    return res.end();
+  }
+  const accepted = String(req.headers['accept-encoding'] || '');
+  let body = entry.body;
+  if (entry.br && /\bbr\b/.test(accepted)) { body = entry.br; headers['Content-Encoding'] = 'br'; }
+  else if (entry.gzip && /\bgzip\b/.test(accepted)) { body = entry.gzip; headers['Content-Encoding'] = 'gzip'; }
+  headers['Content-Length'] = body.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
 }
 
 // A read error must end this one response, not the whole process.
@@ -148,7 +189,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(400);
     return res.end();
   }
-  if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
+  if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url.pathname);
 
   addResponseHelpers(res);
   try {

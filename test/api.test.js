@@ -553,3 +553,16 @@ test('state-changing requests need the app header', async () => {
   const res = await fetch(`${BASE}/api/logout`, { method: 'POST' });
   assert.equal(res.status, 403);
 });
+
+test('static files are compressed and revalidated with an ETag', async () => {
+  const first = await fetch(`${BASE}/js/app.js`, { headers: { 'Accept-Encoding': 'gzip' } });
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get('content-encoding'), 'gzip');
+  assert.match(await first.text(), /import /);
+  const etag = first.headers.get('etag');
+  assert.ok(etag);
+  const again = await fetch(`${BASE}/js/app.js`, { headers: { 'If-None-Match': etag } });
+  assert.equal(again.status, 304);
+  const fallback = await fetch(`${BASE}/caja`);
+  assert.match(fallback.headers.get('content-type'), /text\/html/);
+});
