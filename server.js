@@ -5,6 +5,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const crypto = require('node:crypto');
+const zlib = require('node:zlib');
 
 const { backup } = require('./src/db');
 const { routes, HttpError } = require('./src/api');
@@ -51,8 +53,44 @@ function readJsonBody(req) {
   });
 }
 
+// public/ only changes with a new release, so it is read once at startup and kept in memory
+// together with gzip/brotli copies. Requests then never touch the disk, and phones that already
+// have a file get a 304 instead of downloading it again.
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json', '.webmanifest']);
+
+function loadStaticFiles(dir) {
+  const files = new Map();
+  for (const entry of fs.readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    const body = fs.readFileSync(file);
+    const ext = path.extname(file);
+    const asset = {
+      body,
+      type: MIME_TYPES[ext] || 'application/octet-stream',
+      etag: `"${crypto.createHash('sha1').update(body).digest('base64url')}"`,
+      lastModified: fs.statSync(file).mtime.toUTCString(),
+    };
+    if (COMPRESSIBLE.has(ext) && body.length > 1024) {
+      asset.br = zlib.brotliCompressSync(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } });
+      asset.gzip = zlib.gzipSync(body, { level: 9 });
+    }
+    files.set('/' + path.relative(dir, file).split(path.sep).join('/'), asset);
+  }
+  return files;
+}
+
+const STATIC_FILES = loadStaticFiles(PUBLIC_DIR);
+
+function isFresh(req, asset) {
+  const noneMatch = req.headers['if-none-match'];
+  if (noneMatch) return noneMatch.split(',').some(tag => tag.trim().replace(/^W\//, '') === asset.etag);
+  const since = Date.parse(req.headers['if-modified-since'] || '');
+  return !Number.isNaN(since) && Math.floor(Date.parse(asset.lastModified) / 1000) <= Math.floor(since / 1000);
+}
+
 // Unknown paths fall back to index.html: the web app does its own routing.
-function serveStatic(res, pathname) {
+function serveStatic(req, res, pathname) {
   let decoded;
   try {
     decoded = decodeURIComponent(pathname);
@@ -60,18 +98,29 @@ function serveStatic(res, pathname) {
     res.writeHead(400);
     return res.end(); // a malformed %-sequence, usually a bot probing the server
   }
-  let file = path.normalize(path.join(PUBLIC_DIR, decoded));
-  if (!file.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
+  const asset = STATIC_FILES.get(path.posix.normalize(decoded)) || STATIC_FILES.get('/index.html');
+  const headers = {
+    'Cache-Control': 'no-cache',
+    'ETag': asset.etag,
+    'Last-Modified': asset.lastModified,
+    'Vary': 'Accept-Encoding',
+    'X-Content-Type-Options': 'nosniff',
+  };
+  if (isFresh(req, asset)) {
+    res.writeHead(304, headers);
     return res.end();
   }
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(PUBLIC_DIR, 'index.html');
-  res.writeHead(200, {
-    'Content-Type': MIME_TYPES[path.extname(file)] || 'application/octet-stream',
-    'Cache-Control': 'no-cache',
-    'X-Content-Type-Options': 'nosniff',
-  });
-  streamFile(file, res);
+  const accepted = req.headers['accept-encoding'] || '';
+  let body = asset.body;
+  if (asset.br && /\bbr\b/.test(accepted)) {
+    body = asset.br;
+    headers['Content-Encoding'] = 'br';
+  } else if (asset.gzip && /\bgzip\b/.test(accepted)) {
+    body = asset.gzip;
+    headers['Content-Encoding'] = 'gzip';
+  }
+  res.writeHead(200, { ...headers, 'Content-Type': asset.type, 'Content-Length': body.length });
+  res.end(req.method === 'HEAD' ? undefined : body);
 }
 
 // A read error must end this one response, not the whole process.
@@ -148,7 +197,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(400);
     return res.end();
   }
-  if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
+  if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url.pathname);
 
   addResponseHelpers(res);
   try {
