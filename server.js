@@ -5,8 +5,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const zlib = require('node:zlib');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
 
 const { backup } = require('./src/db');
 const { routes, HttpError } = require('./src/api');
@@ -53,31 +53,40 @@ function readJsonBody(req) {
   });
 }
 
-// Files from public/ are kept in memory with their gzip and brotli versions, so each one is read and
-// compressed once instead of on every request. The ETag lets browsers revalidate with a 304 instead of
-// downloading the file again. An entry is rebuilt when the file on disk changes.
+// public/ only changes with a new release, so it is read once at startup and kept in memory
+// together with gzip/brotli copies. Requests then never touch the disk, and phones that already
+// have a file get a 304 instead of downloading it again.
 const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json', '.webmanifest']);
-const staticCache = new Map();
 
-function loadStatic(file) {
-  let stat;
-  try { stat = fs.statSync(file); } catch { return null; }
-  if (stat.isDirectory()) return null;
-  const cached = staticCache.get(file);
-  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) return cached;
-  const body = fs.readFileSync(file);
-  const extension = path.extname(file);
-  const entry = {
-    mtimeMs: stat.mtimeMs, size: stat.size, body,
-    type: MIME_TYPES[extension] || 'application/octet-stream',
-    etag: `"${crypto.createHash('sha1').update(body).digest('base64url')}"`,
-  };
-  if (COMPRESSIBLE.has(extension)) {
-    entry.br = zlib.brotliCompressSync(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } });
-    entry.gzip = zlib.gzipSync(body, { level: 9 });
+function loadStaticFiles(dir) {
+  const files = new Map();
+  for (const entry of fs.readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    const body = fs.readFileSync(file);
+    const ext = path.extname(file);
+    const asset = {
+      body,
+      type: MIME_TYPES[ext] || 'application/octet-stream',
+      etag: `"${crypto.createHash('sha1').update(body).digest('base64url')}"`,
+      lastModified: fs.statSync(file).mtime.toUTCString(),
+    };
+    if (COMPRESSIBLE.has(ext) && body.length > 1024) {
+      asset.br = zlib.brotliCompressSync(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } });
+      asset.gzip = zlib.gzipSync(body, { level: 9 });
+    }
+    files.set('/' + path.relative(dir, file).split(path.sep).join('/'), asset);
   }
-  staticCache.set(file, entry);
-  return entry;
+  return files;
+}
+
+const STATIC_FILES = loadStaticFiles(PUBLIC_DIR);
+
+function isFresh(req, asset) {
+  const noneMatch = req.headers['if-none-match'];
+  if (noneMatch) return noneMatch.split(',').some(tag => tag.trim().replace(/^W\//, '') === asset.etag);
+  const since = Date.parse(req.headers['if-modified-since'] || '');
+  return !Number.isNaN(since) && Math.floor(Date.parse(asset.lastModified) / 1000) <= Math.floor(since / 1000);
 }
 
 // Unknown paths fall back to index.html: the web app does its own routing.
@@ -89,29 +98,28 @@ function serveStatic(req, res, pathname) {
     res.writeHead(400);
     return res.end(); // a malformed %-sequence, usually a bot probing the server
   }
-  const file = path.normalize(path.join(PUBLIC_DIR, decoded));
-  if (!file.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
-    return res.end();
-  }
-  const entry = loadStatic(file) || loadStatic(path.join(PUBLIC_DIR, 'index.html'));
+  const asset = STATIC_FILES.get(path.posix.normalize(decoded)) || STATIC_FILES.get('/index.html');
   const headers = {
-    'Content-Type': entry.type,
     'Cache-Control': 'no-cache',
-    'ETag': entry.etag,
+    'ETag': asset.etag,
+    'Last-Modified': asset.lastModified,
     'Vary': 'Accept-Encoding',
     'X-Content-Type-Options': 'nosniff',
   };
-  if (req.headers['if-none-match'] === entry.etag) {
+  if (isFresh(req, asset)) {
     res.writeHead(304, headers);
     return res.end();
   }
-  const accepted = String(req.headers['accept-encoding'] || '');
-  let body = entry.body;
-  if (entry.br && /\bbr\b/.test(accepted)) { body = entry.br; headers['Content-Encoding'] = 'br'; }
-  else if (entry.gzip && /\bgzip\b/.test(accepted)) { body = entry.gzip; headers['Content-Encoding'] = 'gzip'; }
-  headers['Content-Length'] = body.length;
-  res.writeHead(200, headers);
+  const accepted = req.headers['accept-encoding'] || '';
+  let body = asset.body;
+  if (asset.br && /\bbr\b/.test(accepted)) {
+    body = asset.br;
+    headers['Content-Encoding'] = 'br';
+  } else if (asset.gzip && /\bgzip\b/.test(accepted)) {
+    body = asset.gzip;
+    headers['Content-Encoding'] = 'gzip';
+  }
+  res.writeHead(200, { ...headers, 'Content-Type': asset.type, 'Content-Length': body.length });
   res.end(req.method === 'HEAD' ? undefined : body);
 }
 

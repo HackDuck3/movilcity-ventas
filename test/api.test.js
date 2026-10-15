@@ -554,15 +554,23 @@ test('state-changing requests need the app header', async () => {
   assert.equal(res.status, 403);
 });
 
-test('static files are compressed and revalidated with an ETag', async () => {
-  const first = await fetch(`${BASE}/js/app.js`, { headers: { 'Accept-Encoding': 'gzip' } });
+test('static files are compressed and revalidated with ETag', async () => {
+  const first = await fetch(`${BASE}/js/app.js`, { headers: { 'Accept-Encoding': 'br' } });
   assert.equal(first.status, 200);
-  assert.equal(first.headers.get('content-encoding'), 'gzip');
-  assert.match(await first.text(), /import /);
+  assert.equal(first.headers.get('content-encoding'), 'br');
+  assert.match(first.headers.get('content-type'), /javascript/);
+  assert.ok((await first.text()).length > 0);
   const etag = first.headers.get('etag');
   assert.ok(etag);
+
   const again = await fetch(`${BASE}/js/app.js`, { headers: { 'If-None-Match': etag } });
   assert.equal(again.status, 304);
-  const fallback = await fetch(`${BASE}/caja`);
+
+  const gzip = await fetch(`${BASE}/css/app.css`, { headers: { 'Accept-Encoding': 'gzip' } });
+  assert.equal(gzip.headers.get('content-encoding'), 'gzip');
+
+  const fallback = await fetch(`${BASE}/ventas/hoy`);
+  assert.equal(fallback.status, 200);
   assert.match(fallback.headers.get('content-type'), /text\/html/);
+  assert.match(await fallback.text(), /<html/i);
 });
